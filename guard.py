@@ -1,17 +1,19 @@
 import os
 import time
 import schedule
-
-#TODO   git add .
-#       git commit ''
-#       git push
+import subprocess
 
 #TODO   git pull
 
+#TODO   git add .
+#       git commit 
+#       git push
+
 def a():
-    os.system("git add .")
-    os.system("git commit 'schedule at:"+time.ctime()+"'")
-    os.system("git pull")
+    if subprocess.check_output("git pull", shell=True)==b'Already up to date.\n':
+        os.system("git add .")
+        os.system("git commit -m 'schedule at:"+time.ctime()+"'")
+        os.system("git push")
     print(time.ctime())
 
 schedule.every(0.01).minutes.do(a)
