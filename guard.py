@@ -13,10 +13,10 @@ def checkPullThenPush():
     print(time.ctime())
 
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
                     level=logging.DEBUG,
-                    filename='guard.log',
-                    filemode='a')
+                    filename=__name__+".log",
+                    filemode="a")
 logger = logging.getLogger(__name__)
 
 schedule.every(0.01).minutes.do(checkPullThenPush)
