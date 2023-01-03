@@ -10,12 +10,12 @@ def checkPullThenPush():
     logger.info(subprocess.getoutput(
         "git commit -m 'schedule at:"+time.ctime()+"'"))
     logger.info(subprocess.getoutput("git push"))
-    print(time.ctime())
+    # 重启flask
 
 
 # schedules
-schedule.every(0.01).minutes.do(checkPullThenPush)
-# schedule.every(1).hour.do(a)
+schedule.every(1).second.do(checkPullThenPush)
+#schedule.every(1).hour.do(checkPullThenPush)
 
 # logging config
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
