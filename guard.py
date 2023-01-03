@@ -13,14 +13,16 @@ def checkPullThenPush():
     print(time.ctime())
 
 
+# schedules
+schedule.every(0.01).minutes.do(checkPullThenPush)
+# schedule.every(1).hour.do(a)
+
+# logging config
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
                     level=logging.DEBUG,
                     filename="guard.log",
                     filemode="a")
 logger = logging.getLogger(__name__)
-
-schedule.every(0.01).minutes.do(checkPullThenPush)
-# schedule.every(1).hour.do(a)
 
 while True:
     schedule.run_pending()
