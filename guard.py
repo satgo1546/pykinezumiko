@@ -15,4 +15,4 @@ schedule.every(0.01).minutes.do(checkPullThenPush)
 
 while True:
     schedule.run_pending()
-    time.sleep(10)
+    time.sleep(5)
