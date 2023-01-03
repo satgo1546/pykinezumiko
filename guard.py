@@ -15,7 +15,7 @@ def checkPullThenPush():
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
                     level=logging.DEBUG,
-                    filename=__name__+".log",
+                    filename="guard.log",
                     filemode="a")
 logger = logging.getLogger(__name__)
 
