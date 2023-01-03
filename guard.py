@@ -24,6 +24,7 @@ logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     filemode="a")
 logger = logging.getLogger(__name__)
 
-while True:
-    schedule.run_pending()
-    time.sleep(5)
+if __name__ == "__main__":
+    while True:
+        schedule.run_pending()
+        time.sleep(5)
