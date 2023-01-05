@@ -1,5 +1,7 @@
-import ..messenger
+from .. import ChatbotBehavior, messenger
 import tarfile
 import tempfile
 
-def event(text: str, user: int, context: int):
+class Commander(ChatbotBehavior):
+    def onmessage(self, context: int, sender: int, text: str):
+        ...

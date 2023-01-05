@@ -30,12 +30,9 @@ def gocqhttp(endpoint: str, data: dict = {}, **kwargs) -> dict:
 def send(context: int, message: str) -> None:
     """发送消息。
 
-    参数：
-    - context：发送目标，正数表示好友，负数表示群。
-    - message：要发送的消息内容，富文本用CQ码表示。
+    :param context: 发送目标，正数表示好友，负数表示群。
+    :param message: 要发送的消息内容，富文本用CQ码表示。
     """
     data = {"message": message}
     data["user_id" if context >= 0 else "group_id"] = abs(context)
     gocqhttp("send_msg", data)
-
-
