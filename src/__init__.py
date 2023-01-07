@@ -24,6 +24,9 @@ class ChatbotBehavior:
     返回假值（即None、False、""）的场合，表示插件无法处理这个事件。该事件会轮替给下一个插件来处理。
     """
 
+    def __init__(self) -> None:
+        self.flows = OrderedDict()
+
     @staticmethod
     def escape(text: str) -> str:
         """CQ码转义。"""
