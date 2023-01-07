@@ -1,5 +1,8 @@
+from collections import OrderedDict
+import time
 import requests
 from typing import Any, Optional
+from collections.abc import Generator
 
 
 class ChatbotBehavior:
@@ -67,6 +70,14 @@ class ChatbotBehavior:
             message=message,
         )
 
+    flows: OrderedDict[
+        tuple[int, int], tuple[float, Generator[object, Optional[str], object]]
+    ]
+    """尚在进行的对话流程。
+
+    从(context, sender)到(最后活动时间戳, 程序执行状态)的映射，按最后活动时间从早到晚排序。
+    """
+
     def gocqhttp_event(self, data: dict[str, Any]) -> bool:
         """接收事件并调用对应的事件处理方法。
 
@@ -75,13 +86,34 @@ class ChatbotBehavior:
         """
         sender = int(data["user_id"]) if "user_id" in data else 0
         context = -int(data["group_id"]) if "group_id" in data else sender
-        result: Any = None
+        result: object = None
         # https://docs.go-cqhttp.org/event/
         if data["post_type"] == "message":
             # 这个类型的上报只有好友消息和群聊消息两种。
-            result = self.on_message(
-                context, sender, data["raw_message"], data["message_id"]
-            )
+            message = data["raw_message"]
+            # 强制终止超过一天仍未结束的对话流程。
+            while (
+                self.flows and next(iter(self.flows.values()))[0] < time.time() - 86400
+            ):
+                self.flows.popitem(last=False)
+            # 如果当前上下文中的发送者没有仍在进行的对话流程，有可能因本条消息启动新的对话流程。
+            if (context, sender) not in self.flows:
+                result = self.on_message(context, sender, message, data["message_id"])
+                # 是否启动了新的对话流程？
+                if isinstance(result, Generator):
+                    self.flows[context, sender] = time.time(), result
+                    message = None  # 向Generator首次send的值必须为None
+            # 当前上下文中的发送者有无仍在进行（或上面刚启动）的对话流程？
+            if (context, sender) in self.flows:
+                try:
+                    generator = self.flows[context, sender][1]
+                    result = generator.send(message)
+                    if result:
+                        self.flows[context, sender] = time.time(), generator
+                        self.flows.move_to_end((context, sender))
+                except StopIteration as e:
+                    result = e.value
+                    del self.flows[context, sender]
         elif data["post_type"] == "request":
             # 这个类型的上报只有申请添加好友和申请加入群聊两种。
             result = self.on_admission(context, sender, data["comment"])
