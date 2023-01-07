@@ -131,8 +131,8 @@ class ChatbotBehavior:
                     )
                 result = True
         elif data["post_type"] == "meta_event":
-            # 根本不会出现这个类型的上报。go-cqhttp的文档中出现了元事件上报，但至今没有实例。
-            pass
+            # 这个类型的上报只有心跳，且没有在go-cqhttp的文档中说明。
+            result = self.on_interval()
         # 其余所有事件都是通知上报。
         elif data["notice_type"] in ("friend_recall", "group_recall"):
             message = ChatbotBehavior.gocqhttp("get_msg", message_id=data["message_id"])
@@ -178,4 +178,10 @@ class ChatbotBehavior:
         """收到了添加好友的请求或加入群聊的请求。
 
         返回True接受，False拒绝，None无视并留给下一个插件处理。
+        """
+
+    def on_interval(self):
+        """每隔不到一分钟，此函数就会被调用。
+
+        用于实现定时功能。
         """
