@@ -67,13 +67,14 @@ class ChatbotBehavior:
             message=message,
         )
 
-    def dispatch(self, data: dict[str, Any]) -> bool:
-        """接收事件。
+    def gocqhttp_event(self, data: dict[str, Any]) -> bool:
+        """接收事件并调用对应的事件处理方法。
 
         :param data: 来自go-cqhttp的上报数据。
+        :returns: True表示事件已受理，不应再交给其他插件；False表示应继续由其他插件处理本事件。
         """
         sender = int(data["user_id"]) if "user_id" in data else 0
-        context = int(-data["group_id"]) if "group_id" in data else sender
+        context = -int(data["group_id"]) if "group_id" in data else sender
         result: Any = None
         # https://docs.go-cqhttp.org/event/
         if data["post_type"] == "message":
@@ -103,7 +104,7 @@ class ChatbotBehavior:
         # 其余所有事件都是通知上报。
         elif data["notice_type"] in ("friend_recall", "group_recall"):
             message = ChatbotBehavior.gocqhttp("get_msg", message_id=data["message_id"])
-            message = message["raw_message"] if "raw_message" in message else ""
+            message = str(message["raw_message"]) if "raw_message" in message else ""
             result = self.on_message_deleted(
                 context, sender, message, data["message_id"]
             )
