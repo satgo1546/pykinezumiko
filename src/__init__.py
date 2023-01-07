@@ -1,5 +1,5 @@
 import requests
-from typing import Optional
+from typing import Any, Optional
 
 
 class ChatbotBehavior:
@@ -66,6 +66,68 @@ class ChatbotBehavior:
             {"user_id" if context >= 0 else "group_id": abs(context)},
             message=message,
         )
+
+    def dispatch(self, data: dict[str, Any]) -> bool:
+        """接收事件。
+
+        :param data: 来自go-cqhttp的上报数据。
+        """
+        sender = int(data["user_id"]) if "user_id" in data else 0
+        context = int(-data["group_id"]) if "group_id" in data else sender
+        result: Any = None
+        # https://docs.go-cqhttp.org/event/
+        if data["post_type"] == "message":
+            # 这个类型的上报只有好友消息和群聊消息两种。
+            result = self.on_message(
+                context, sender, data["raw_message"], data["message_id"]
+            )
+        elif data["post_type"] == "request":
+            # 这个类型的上报只有申请添加好友和申请加入群聊两种。
+            result = self.on_admission(context, sender, data["comment"])
+            if result is not None:
+                if data["request_type"] == "friend":
+                    self.gocqhttp(
+                        "set_friend_add_request", flag=data["flag"], approve=result
+                    )
+                elif data["request_type"] == "group":
+                    self.gocqhttp(
+                        "set_group_add_request",
+                        flag=data["flag"],
+                        type=data["sub_type"],
+                        approve=result,
+                    )
+                result = True
+        elif data["post_type"] == "meta_event":
+            # 根本不会出现这个类型的上报。go-cqhttp的文档中出现了元事件上报，但至今没有实例。
+            pass
+        # 其余所有事件都是通知上报。
+        elif data["notice_type"] in ("friend_recall", "group_recall"):
+            message = ChatbotBehavior.gocqhttp("get_msg", message_id=data["message_id"])
+            message = message["raw_message"] if "raw_message" in message else ""
+            result = self.on_message_deleted(
+                context, sender, message, data["message_id"]
+            )
+        elif data["notice_type"] == "offline_file":
+            result = self.on_file(
+                context,
+                sender,
+                data["file"]["name"],
+                data["file"]["size"],
+                data["file"]["url"],
+            )
+        elif data["notice_type"] == "group_upload":
+            url = ChatbotBehavior.gocqhttp(
+                "get_group_file_url",
+                group_id=-context,
+                file_id=data["file"]["id"],
+                busid=data["file"]["busid"],
+            )["url"]
+            result = self.on_file(
+                context, sender, data["file"]["name"], data["file"]["size"], url
+            )
+        if result and context and isinstance(result, str):
+            self.send(context, result)
+        return bool(result)
 
     def on_message(self, context: int, sender: int, text: str, message_id: int):
         """当收到消息时执行此函数。
