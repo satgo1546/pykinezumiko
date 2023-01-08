@@ -1,7 +1,8 @@
-import time
 import random
-from typing import Union
+import time
 from collections.abc import Generator
+from typing import Union
+
 from .. import ChatbotBehavior
 
 
