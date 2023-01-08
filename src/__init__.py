@@ -220,6 +220,17 @@ class ChatbotBehavior:
         """当收到消息时执行此函数。
 
         如果不知道参数和返回值的含义的话，请看ChatbotBehavior类的说明。
+
+        因为on_message事件太常用了，扩展了以下方便用法。
+
+        【关于对话流程】
+        可以像阻塞式控制台程序一样编写事件处理程序，在需要向用户提问的交互式场合非常方便。
+
+            print("你输入的是" + input("请输入文字"))
+            → return "你输入的是" + (yield "请输入文字")
+
+        这种写法使用了无法持久化保存的Python生成器，也就是说，进程重启之后程序的执行状态就会消失。
+        此外，超过一天没有下文的对话流程会被直接删除。
         """
 
     def on_message_deleted(self, context: int, sender: int, text: str, message_id: int):
