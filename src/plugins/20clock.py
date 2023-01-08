@@ -21,4 +21,4 @@ class Clock(ChatbotBehavior):
     def on_interval(self):
         # 如果提醒队列非空且第一个提醒到时间了就提醒用户
         while self.q and self.q[0][0] > time.time():
-            return self.pop()[1]
+            return self.q.pop()[1]
