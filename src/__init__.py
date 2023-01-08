@@ -25,8 +25,11 @@ class ChatbotBehavior:
     返回假值（即None、False、""）的场合，表示插件无法处理这个事件。该事件会轮替给下一个插件来处理。
     """
 
-    name_cache: ClassVar[dict[Union[int, tuple[int, int]], str]] = {}
-    """从context到好友名（备注优先）或群聊名的映射，以及从(context, sender)到群名片的映射。"""
+    _name_cache: ClassVar[dict[Union[int, tuple[int, int]], str]] = {}
+    """在name方法内部使用的名称缓存。若想在对话中包含某人的名称，请使用name方法。
+
+    从context到好友名或群聊名的映射，以及从(context, sender)到群名片的映射。
+    """
 
     def __init__(self) -> None:
         self.flows: OrderedDict[
@@ -175,7 +178,7 @@ class ChatbotBehavior:
 
     @overload
     def name(self, context: int) -> str:
-        """获取好友名（正参数）或群聊名（负参数），备注优先。"""
+        """获取好友名（正参数）或群聊名（负参数）。"""
 
     @overload
     def name(self, context: tuple[int, int]) -> str:
@@ -183,7 +186,7 @@ class ChatbotBehavior:
 
     @overload
     def name(self, context: int, sender: int) -> str:
-        """获取群名片或用户在群聊中的昵称。"""
+        """获取群名片或群聊中用户的昵称。"""
 
     def name(self, context, sender=None) -> str:
         """获取各种用户和群的名称的方法。
@@ -192,18 +195,16 @@ class ChatbotBehavior:
         """
         if sender is not None:
             return self.name((context, sender))
-        if context in self.name_cache:
-            return self.name_cache[context]
+        if context in self._name_cache:
+            return self._name_cache[context]
         if isinstance(context, int):
             if context >= 0:
                 for response in self.gocqhttp("get_friend_list"):
-                    self.name_cache[response["user_id"]] = (
-                        response["remark"] or response["nickname"]
-                    )
-                name = self.name_cache.get(context, "")
+                    self._name_cache[response["user_id"]] = response["nickname"]
+                name = self._name_cache.get(context, "")
             else:
                 response = self.gocqhttp("get_group_info", group_id=-context)
-                name = response.get("group_memo") or response["group_name"]
+                name = response["group_name"]
         else:
             if context[0] >= 0:
                 name = self.name(context[1])
@@ -212,7 +213,7 @@ class ChatbotBehavior:
                     "get_group_member_info", group_id=-context[0], user_id=context[1]
                 )
                 name = response.get("card") or response["nickname"]
-        self.name_cache[context] = name
+        self._name_cache[context] = name
         return name
 
     def on_message(self, context: int, sender: int, text: str, message_id: int):
@@ -242,12 +243,12 @@ class ChatbotBehavior:
 
 class NameCacheUpdater(ChatbotBehavior):
     """与ChatbotBehavior基类联合工作的必备插件。"""
+
     def gocqhttp_event(self, data: dict[str, Any]) -> bool:
         # 如果有详细的发送者信息，更新名称缓存。
-        # 虽然这不应该由每个插件分别运行，但暂时找不到好地方放这个代码，就这样吧。
         context, sender = self.context_sender_from_gocqhttp_event(data)
-        if "sender" in data and "group_id" in data:
-            self.name_cache[context, sender] = data["sender"].get("card") or data[
-                "sender"
-            ].get("nickname")
+        if "sender" in data:
+            nickname = data["sender"].get("nickname", "")
+            self._name_cache[sender] = self._name_cache[sender, sender] = nickname
+            self._name_cache[context, sender] = data["sender"].get("card") or nickname
         return False
