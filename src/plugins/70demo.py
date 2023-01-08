@@ -66,5 +66,7 @@ class Demonstration(ChatbotBehavior):
             n = max(1, int(text)) if text.isnumeric() else 1
             if n > 9:
                 return "注意，即使 .debug cls 也无法清除待回显的状态。请再考虑一下。"
-            for i in range(n):
-                text = yield text if i else f"将回显接下来的 {n} 条消息。"
+            text = yield f"将回显接下来的 {n} 条消息。"
+            for _ in range(n - 1):
+                text = yield text
+            return text
