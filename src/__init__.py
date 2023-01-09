@@ -5,9 +5,8 @@ import unicodedata
 from bisect import bisect_left
 from collections import OrderedDict
 from collections.abc import Generator
-from functools import partial
 from itertools import filterfalse, groupby
-from typing import Any, Callable, ClassVar, Optional, Union, overload
+from typing import Any, ClassVar, Optional, Union, overload
 
 import requests
 
@@ -120,7 +119,7 @@ class ChatbotBehavior:
             if (context, sender) not in self.flows:
                 result = self.dispatch_command(
                     context, sender, message, data["message_id"]
-                )()
+                )
                 # 是否启动了新的对话流程？
                 if isinstance(result, Generator):
                     self.flows[context, sender] = time.time(), result
@@ -285,8 +284,8 @@ class ChatbotBehavior:
 
     def dispatch_command(
         self, context: int, sender: int, text: str, message_id: int
-    ) -> Callable[[], object]:
-        """决定是调用哪个on_command_×××，抑或是on_message。
+    ) -> object:
+        """找到并调用某个on_command_×××，抑或是on_message。
 
         方法名的匹配是模糊的，但要求方法名必须为规范形式。
         具体参照normalize_command_name方法，最重要的是必须是小写。
@@ -305,15 +304,14 @@ class ChatbotBehavior:
         while parts:
             f = getattr(self, "on_command_" + "".join(parts), None)
             if callable(f):
-                # 在原始字符串中找到命令名之后的部分。
-                # 证明一下这个二分法数据的单调性？
-                # 平时做算法题怎么都想不到二分答案——而且这除了用来做算法题以外有什么用啊！
-                # 结果真的在实际开发中用到了这种思路，这合理吗？
-                return partial(
-                    f,
+                return f(
                     **self.parse_command(
                         dict(inspect.signature(f).parameters),
                         arguments,
+                        # 在原始字符串中找到命令名之后的部分。
+                        # 证明一下这个二分法数据的单调性？
+                        # 平时做算法题怎么都想不到二分答案——而且这除了用来做算法题以外有什么用啊！
+                        # 结果真的在实际开发中用到了这种思路，这合理吗？
                         text[
                             bisect_left(
                                 range(1, 111),
@@ -323,8 +321,9 @@ class ChatbotBehavior:
                         ].strip(),
                     ),
                 )
+            # 从长到短，一段一段截下，再尝试取用属性。
             parts.pop()
-        return partial(self.on_message, context, sender, text, message_id)
+        return self.on_message(context, sender, text, message_id)
 
     def on_message(self, context: int, sender: int, text: str, message_id: int):
         """当收到消息时执行此函数。
