@@ -47,8 +47,6 @@ class Clock(ChatbotBehavior):
                 return "无法识别到有效时间"
 
     def on_interval(self):
-        with open(self.path, 'wb') as f:
-            pickle.dump(list(self.pq.queue), f)
         # 如果提醒队列非空且第一个提醒到时间了就提醒用户
         while not self.pq.empty() and self.pq.queue[0][0] < time.time():
             _, title, target = self.pq.get()
