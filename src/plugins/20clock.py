@@ -32,7 +32,7 @@ class Clock(ChatbotBehavior):
             else:
                 l, r = res.span()
                 dt = int(res.group())
-                title = dtAndTitle[:l-1] + dtAndTitle[r+1:]
+                title = dtAndTitle[:l] + dtAndTitle[r:]
                 title = title.strip()
                 if not title:
                     return "标题不能为空"
