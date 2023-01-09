@@ -38,6 +38,8 @@ class Clock(ChatbotBehavior):
             # 存储格式：[浮点触发时间戳，回复内容，会话id]
             if dt and title:
                 self.pq.put([time.time()+dt, title, context])
+                with open(self.path, 'wb') as f:
+                    pickle.dump(list(self.pq.queue), f)
                 return str(time.time()+dt)+" "+title
             elif dt and not title:
                 return "标题不能为空"
@@ -50,5 +52,7 @@ class Clock(ChatbotBehavior):
         # 如果提醒队列非空且第一个提醒到时间了就提醒用户
         while not self.pq.empty() and self.pq.queue[0][0] < time.time():
             _, title, target = self.pq.get()
+            with open(self.path, 'wb') as f:
+                pickle.dump(list(self.pq.queue), f)
             self.send(target, title)
             time.sleep(1)
