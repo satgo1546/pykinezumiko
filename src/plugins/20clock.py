@@ -32,7 +32,7 @@ class Clock(ChatbotBehavior):
             else:
                 l, r = res.span()
                 dt = int(res.group().strip())
-                title = dtAndTitle[:l]+dtAndTitle[r:]
+                title = dtAndTitle[:l] + dtAndTitle[r:]
                 title = title.strip()
                 if not title:
                     return "标题不能为空"
@@ -41,8 +41,7 @@ class Clock(ChatbotBehavior):
             self.pq.put([time.time()+dt, title, context])
             with open(self.path, 'wb') as f:
                 pickle.dump(list(self.pq.queue), f)
-            return str(time.time()+dt)+" "+title
-
+            return str(time.time()+dt) + " "+title
 
     def on_interval(self):
         # 如果提醒队列非空且第一个提醒到时间了就提醒用户
