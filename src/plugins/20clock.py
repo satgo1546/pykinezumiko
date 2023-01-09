@@ -28,18 +28,18 @@ class Clock(ChatbotBehavior):
             dt = None
             # 匹配int数字
             if not dt and dtAndTitle[0].isdigit():
-                title = " ".join(dtAndTitle[1:])
+                title = " ".join(dtAndTitle[1:]).strip()
                 dt = int(dtAndTitle[0])
             # 2 匹配结尾作为时间输入
             # 匹配int数字
             if not dt and dtAndTitle[-1].isdigit():
-                title = " ".join(dtAndTitle[:-1])
+                title = " ".join(dtAndTitle[:-1]).strip()
                 dt = int(dtAndTitle[-1])
             # 存储格式：[浮点触发时间戳，回复内容，会话id]
             if dt and title:
                 self.pq.put([time.time()+dt, title, context])
                 return str(time.time()+dt)+" "+title
-            elif dt and not title.strip():
+            elif dt and not title:
                 return "标题不能为空"
             else:
                 return "无法识别到有效时间"
