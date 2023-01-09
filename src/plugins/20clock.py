@@ -17,12 +17,12 @@ class Clock(ChatbotBehavior):
             # 1 匹配开头作为时间输入
             dt = None
             # 匹配int数字
-            if dtAndTitle[0].isdigit():
+            if not dt and dtAndTitle[0].isdigit():
                 title = " ".join(dtAndTitle[1:])
                 dt = int(dtAndTitle[0])
             # 2 匹配结尾作为时间输入
             # 匹配int数字
-            if dtAndTitle[-1].isdigit():
+            if not dt and dtAndTitle[-1].isdigit():
                 title = " ".join(dtAndTitle[:-1])
                 dt = int(dtAndTitle[-1])
             # 存储格式：[浮点触发时间戳，回复内容，会话id]
