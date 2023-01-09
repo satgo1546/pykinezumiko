@@ -23,7 +23,7 @@ class Clock(ChatbotBehavior):
     def on_message(self, context: int, sender: int, text: str, message_id: int):
         if text.startswith(".clock"):
             # ".clock 增加的时间 消息" or ".clock 消息 增加的时间"
-            dtAndTitle = text[7:]
+            dtAndTitle = text[7:].strip()
             # 匹配开头和结尾作为时间输入
             title, dt = None, None
             res = re.search(r"^\d+|\d+$", dtAndTitle)
