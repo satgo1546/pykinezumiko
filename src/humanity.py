@@ -1,7 +1,7 @@
 import re
 import unicodedata
 from itertools import filterfalse, groupby
-from typing import Any, SupportsInt
+from typing import Any, SupportsInt, Union
 
 
 def format_timespan(seconds: SupportsInt) -> str:
@@ -22,6 +22,44 @@ def format_timespan(seconds: SupportsInt) -> str:
     r.append(str(seconds))
     r.append("秒")
     return " ".join(r)
+
+
+def parse_number(s: str, default=0) -> float:
+    """将可能含有汉字的字符串转换成对应的数值。"""
+    s = s.strip()
+    if not s:
+        return default
+    try:
+        return float(s)
+    except ValueError:
+        pass
+    for c, v in (
+        ("亿", 100000000),
+        ("億", 100000000),
+        ("万", 10000),
+        ("千", 1000),
+        ("百", 100),
+        ("十", 10),
+    ):
+        head, c, tail = s.partition(c)
+        if c:
+            return parse_number(head, 1) * v + parse_number(tail)
+    s = s.translate(str.maketrans("零点〇一二三四五六七八九", "0.0123456789"))
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
+def to_number(s: str)->Union[int,float]:
+    """将字符串转换成整数或浮点数。"""
+    try:
+        return int(s)
+    except ValueError:
+        try:
+            return float(s)
+        except ValueError:
+            return 0.0 if "." in s else 0
 
 
 def normalize_command_name(text: str) -> list[str]:
