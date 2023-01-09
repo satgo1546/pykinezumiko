@@ -33,13 +33,13 @@ def normalize_command_name(text: str) -> list[str]:
         → " Ｆｏｏ  BÄR114514 "
     - 消去开头和结尾的空白符。
         → "Ｆｏｏ  BÄR114514"
-    - 替换连续的空白符和下划线为单个下划线。
-        → "Ｆｏｏ_BÄR114514"
     - case folding。简单地说就是变成小写。一些语言有额外变换（ß → ss，ς → σ等）。
-        → "ｆｏｏ_bär114514"
+        → "ｆｏｏ  bär114514"
     - 兼容分解形式标准化（NFKD）。简单地说就是把怪字转换为正常字，比如全角变成半角。
-        → "foo_ba\u0308r114514"
+        → "foo  ba\u0308r114514"
     - 删去组合字符。一些语言的语义可能受到影响（é → e，が → か等）。
+        → "foo  bar114514"
+    - 替换连续的空白符和下划线为单个下划线。
         → "foo_bar114514"
     - 按字符类别分组。
         → ["foo", "_", "bar", "114514"]
@@ -48,11 +48,17 @@ def normalize_command_name(text: str) -> list[str]:
         [
             "".join(s)
             for _, s in groupby(
-                filterfalse(
-                    unicodedata.combining,
-                    unicodedata.normalize(
-                        "NFKD",
-                        re.sub(r"[\s_]+", "_", text[1:111].strip()).casefold(),
+                re.sub(
+                    r"[\s_]+",
+                    "_",
+                    "".join(
+                        filterfalse(
+                            unicodedata.combining,
+                            unicodedata.normalize(
+                                "NFKD",
+                                text[1:111].strip().casefold(),
+                            ),
+                        )
                     ),
                 ),
                 unicodedata.category,
