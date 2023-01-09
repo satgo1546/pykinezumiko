@@ -26,13 +26,13 @@ class Clock(ChatbotBehavior):
             dtAndTitle = text[7:]
             # 匹配开头和结尾作为时间输入
             title, dt = None, None
-            res = re.search(r"^\d+\s|\s\d+$", dtAndTitle)
+            res = re.search(r"^\d+|\d+$", dtAndTitle)
             if not res:
                 return "无法识别到有效时间"
             else:
                 l, r = res.span()
-                dt = int(res.group().strip())
-                title = dtAndTitle[:l] + dtAndTitle[r:]
+                dt = int(res.group())
+                title = dtAndTitle[:l-1] + dtAndTitle[r+1:]
                 title = title.strip()
                 if not title:
                     return "标题不能为空"
