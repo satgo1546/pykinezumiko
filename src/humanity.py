@@ -71,10 +71,17 @@ def normalize(text: str) -> str:
         → " Ｆｏｏ  BÄR114514 "
     - 消去开头和结尾的空白符。
         → "Ｆｏｏ  BÄR114514"
+    - 标准分解（NFD）。拆分出独立的重音符号。
+        → "Ｆｏｏ  BA\u0308R114514"
     - case folding。简单地说就是变成小写。一些语言有额外变换（ß → ss，ς → σ等）。
-        → "ｆｏｏ  bär114514"
+        → "ｆｏｏ  ba\u0308r114514"
     - 兼容分解形式标准化（NFKD）。简单地说就是把怪字转换为正常字，比如全角变成半角。
         → "foo  ba\u0308r114514"
+    - case folding。
+    - 兼容分解形式标准化（NFKD）。套两层是因为㎯这样的方块字母。参照Unicode标准之默认大小写算法。
+        A string X is a compatibility caseless match for a string Y if and only if:
+            NFKD(toCasefold(NFKD(toCasefold(NFD(X))))) =
+                NFKD(toCasefold(NFKD(toCasefold(NFD(Y)))))
     - 删去组合字符。一些语言的语义可能受到影响（é → e，が → か等）。
         → "foo  bar114514"
     - 替换连续的空白符和下划线为单个下划线。
@@ -88,7 +95,10 @@ def normalize(text: str) -> str:
                 unicodedata.combining,
                 unicodedata.normalize(
                     "NFKD",
-                    text.strip().casefold(),
+                    unicodedata.normalize(
+                        "NFKD",
+                        unicodedata.normalize("NFD", text.strip()).casefold(),
+                    ).casefold(),
                 ),
             )
         ),
