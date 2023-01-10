@@ -1,13 +1,13 @@
 import inspect
 import time
 from bisect import bisect_left
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from collections.abc import Generator
-from typing import Any, ClassVar, Optional, Union, overload
+from typing import Any, Callable, ClassVar, NamedTuple, Optional, Union, overload
 
 import requests
 
-from .humanity import tokenize_command_name, parse_command
+from . import humanity
 
 
 class ChatbotBehavior:
@@ -36,6 +36,9 @@ class ChatbotBehavior:
     """
 
     def __init__(self) -> None:
+        self.commands: dict[str, Callable[[int, int, str, int], object]] = {}
+        """插件支持的命令列表。通过@self.command装饰器来注册。"""
+
         self.flows: OrderedDict[
             tuple[int, int], tuple[float, Generator[object, Optional[str], object]]
         ] = OrderedDict()
@@ -226,29 +229,60 @@ class ChatbotBehavior:
         self._name_cache[context] = name
         return name
 
+    class Argument(NamedTuple):
+        parser: Callable[[str], Union[tuple[str, Any], tuple[tuple[int, int], Any]]]
+        """参数的解析器。
+        
+        各参数按顺序解析。函数接受已删去两侧空白的当前待读字符串，返回读入参数后的剩余字符串或已消耗掉的字符串片段始末，以及读入的对象。
+        """
+        display_name: Optional[str] = None
+        """参数的显示名称。
+        
+        用于在帮助信息中显示。
+        """
+
+    def command(
+        self, name: str, *args: Argument, **kwargs: Argument
+    ) -> Callable[[Callable], Callable]:
+        """调用使用此装饰器注册命令事件处理器。不会修改被装饰的函数。
+
+        :param name: 命令名。不必带命令符，但有也没关系。匹配是模糊的，具体参照humanity.normalize方法。如果同时注册了.foo和.foo bar命令，且定义了on_message方法，最具体的那个会被调用。
+
+        - ".foo bar" → .foo bar
+        - ".foo baz" → .foo
+        - ".bar" → on_message
+
+        :param args: 命令各参数的信息。
+        :param kwargs: 同上。
+        """
+        name = humanity.normalize(
+            name[1:] if name[0] in humanity.command_prefix else name
+        )
+
+        def decorator(f: Callable) -> Callable:
+            def wrapper(context: int, sender: int, text: str, message_id: int):
+                return f()
+
+            self.commands[name] = wrapper
+            return f
+
+        return decorator
+
     def dispatch_command(
         self, context: int, sender: int, text: str, message_id: int
     ) -> object:
-        """找到并调用某个on_command_×××，抑或是on_message。
+        """找到并调用某个注册过的命令事件处理器，抑或是on_message。
 
-        方法名的匹配是模糊的，但要求方法名必须为规范形式。
-        具体参照normalize_command_name方法，最重要的是必须是小写。
-        由于__getattr__等魔法方法的存在，不可能列出对象支持的方法列表，故当方法名不规范时，无法给出任何警告。
-
-        如果同时定义了on_message、on_command_foo、on_command_foo_bar，最具体的函数会被调用。
-
-        - ".foo bar" → on_command_foo_bar
-        - ".foo baz" → on_command_foo
-        - ".bar" → on_message
-
-        on_command_×××方法的参数必须是。
+        执行步骤参照command装饰器的文档。
         """
-        parts = tokenize_command_name(text)
+        parts = humanity.tokenize_command_name(text)
         while parts:
-            f = getattr(self, "on_command_" + "".join(parts), None)
-            if callable(f):
+            name = "".join(parts)
+            if name in self.commands:
+                self.commands[name](context, sender, text, message_id)
+            if f := self.commands.get(name):
                 return f(
-                    **parse_command(
+                    **humanity.parse_command(
                         {
                             parameter.name: parameter.annotation
                             for parameter in inspect.signature(f).parameters.values()
@@ -267,8 +301,8 @@ class ChatbotBehavior:
                         text[
                             bisect_left(
                                 range(1, 111),
-                                parts,
-                                key=lambda i: tokenize_command_name(text[:i]),
+                                "".join(parts),
+                                key=lambda i: humanity.normalize(text[1:i]),
                             ) :
                         ].strip(),
                     ),
