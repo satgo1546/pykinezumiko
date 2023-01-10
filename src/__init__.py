@@ -7,7 +7,7 @@ from typing import Any, ClassVar, Optional, Union, overload
 
 import requests
 
-from .humanity import tokenize_command_name, parse_command
+from . import humanity
 
 
 class ChatbotBehavior:
@@ -232,7 +232,7 @@ class ChatbotBehavior:
         """找到并调用某个on_command_×××，抑或是on_message。
 
         方法名的匹配是模糊的，但要求方法名必须为规范形式。
-        具体参照normalize_command_name方法，最重要的是必须是小写。
+        具体参照humanity.normalize函数，最重要的是必须是小写。
         由于__getattr__等魔法方法的存在，不可能列出对象支持的方法列表，故当方法名不规范时，无法给出任何警告。
 
         如果同时定义了on_message、on_command_foo、on_command_foo_bar，最具体的函数会被调用。
@@ -241,14 +241,16 @@ class ChatbotBehavior:
         - ".foo baz" → on_command_foo
         - ".bar" → on_message
 
-        on_command_×××方法的参数必须是。
+        on_command_×××方法的参数必须支持按参数名传入（关键字参数），且正确标注类型。
+        有名为context、sender、text、message_id的参数时，对应的值会被传入。
         """
-        parts = tokenize_command_name(text)
+        parts = humanity.tokenize_command_name(text)
         while parts:
-            f = getattr(self, "on_command_" + "".join(parts), None)
+            name = "".join(parts)
+            f = getattr(self, "on_command_" + name, None)
             if callable(f):
                 return f(
-                    **parse_command(
+                    **humanity.parse_command(
                         {
                             parameter.name: parameter.annotation
                             for parameter in inspect.signature(f).parameters.values()
@@ -267,8 +269,8 @@ class ChatbotBehavior:
                         text[
                             bisect_left(
                                 range(1, 111),
-                                parts,
-                                key=lambda i: tokenize_command_name(text[:i]),
+                                name,
+                                key=lambda i: humanity.normalize(text[1:i]),
                             ) :
                         ].strip(),
                     ),
@@ -288,6 +290,7 @@ class ChatbotBehavior:
         只要定义函数on_command_foo(self, …)，就能处理.foo这样的指令。
         这样一来，只需要处理有格式命令的话，甚至不必编写on_message事件处理器就能做到。
         方法的命名、参数、优先关系等细节请参照dispatch_command方法的文档。
+        参数解析的细节请参照humanity.parse_command函数的文档。
         可以在on_command_×××中使用yield（参照下述对话流程功能）。
 
         【关于对话流程】
