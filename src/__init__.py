@@ -9,9 +9,8 @@ import requests
 from . import humanity
 
 
-def bisect_left(a, x, key):
+def bisect_left(a, x, lo, key):
     """为了支持Python 3.9，补一个支持key的二分函数……"""
-    lo = 0
     hi = len(a)
     while lo < hi:
         mid = (lo + hi) // 2
@@ -280,8 +279,9 @@ class ChatbotBehavior:
                         # 结果真的在实际开发中用到了这种思路，这合理吗？
                         text[
                             bisect_left(
-                                range(1, 111),
+                                range(min(111, len(text))),
                                 name,
+                                lo=1,
                                 key=lambda i: humanity.normalize(text[1:i]),
                             ) :
                         ].strip(),
