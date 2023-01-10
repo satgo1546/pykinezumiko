@@ -132,6 +132,7 @@ def parse_command(
     :param given_arguments: 已知的参数。如果需要其中的参数，就直接赋予，不从字符串中解析。
     :param text: 待解析的字符串。
     """
+    raise FloatingPointError(f"哼哼\n{parameters!r}\n{given_arguments!r}\n{text!r}\n")#测试用
     kwargs = {}
     last_str_parameter_name = None
     for name, parameter in parameters.items():
@@ -169,5 +170,5 @@ def parse_command(
         if last_str_parameter_name:
             kwargs[last_str_parameter_name] += text
         else:
-            raise SyntaxError("残留未成功解析的参数")  # 滥用系统自带的异常类型
+            raise SyntaxError(f"残留未成功解析的参数“{text}”")  # 滥用系统自带的异常类型
     return kwargs
