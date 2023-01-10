@@ -1,6 +1,5 @@
 import inspect
 import time
-from bisect import bisect_left
 from collections import OrderedDict
 from collections.abc import Generator
 from typing import Any, ClassVar, Optional, Union, overload
@@ -8,6 +7,19 @@ from typing import Any, ClassVar, Optional, Union, overload
 import requests
 
 from . import humanity
+
+
+def bisect_left(a, x, key):
+    """为了支持Python 3.9，补一个支持key的二分函数……"""
+    lo = 0
+    hi = len(a)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if key(a[mid]) < x:
+            lo = mid + 1
+        else:
+            hi = mid
+    return lo
 
 
 class ChatbotBehavior:
