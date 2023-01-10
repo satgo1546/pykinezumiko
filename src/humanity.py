@@ -62,8 +62,8 @@ def to_number(s: str) -> Union[int, float]:
             return 0.0 if "." in s else 0
 
 
-def tokenize_command_name(text: str) -> list[str]:
-    """当输入字符串以命令符（句点“.”、句号“。”、叹号“!”或“！”）开头，给出按命令名词法切分后的列表，否则返回空列表。
+def normalize(text: str) -> str:
+    """激进地统一字符串为规范形式。
 
     将对输入字符串"! Ｆｏｏ  BÄR114514 "进行下述Unicode变换。
 
@@ -79,30 +79,34 @@ def tokenize_command_name(text: str) -> list[str]:
         → "foo  bar114514"
     - 替换连续的空白符和下划线为单个下划线。
         → "foo_bar114514"
-    - 按字符类别分组。
-        → ["foo", "_", "bar", "114514"]
     """
-    return (
-        [
-            "".join(s)
-            for _, s in groupby(
-                re.sub(
-                    r"[\s_]+",
-                    "_",
-                    "".join(
-                        filterfalse(
-                            unicodedata.combining,
-                            unicodedata.normalize(
-                                "NFKD",
-                                text[1:111].strip().casefold(),
-                            ),
-                        )
-                    ),
+    return re.sub(
+        r"[\s_]+",
+        "_",
+        "".join(
+            filterfalse(
+                unicodedata.combining,
+                unicodedata.normalize(
+                    "NFKD",
+                    text.strip().casefold(),
                 ),
-                unicodedata.category,
             )
-        ]
-        if text[0] in ".。!！"
+        ),
+    )
+
+
+command_prefix = ".。!！"
+"""可能的命令符组成的字符串。
+
+例如，用text[0] in command_prefix来判断text是否是命令。
+"""
+
+
+def tokenize_command_name(text: str) -> list[str]:
+    """当输入字符串以命令符（参照command_prefix变量）开头，给出按字符类切分后的列表，否则返回空列表。"""
+    return (
+        ["".join(s) for _, s in groupby(normalize(text[1:111]), unicodedata.category)]
+        if text[0] in command_prefix
         else []
     )
 
