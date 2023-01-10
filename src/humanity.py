@@ -51,7 +51,7 @@ def parse_number(s: str, default=0) -> float:
         return 0.0
 
 
-def to_number(s: str)->Union[int,float]:
+def to_number(s: str) -> Union[int, float]:
     """将字符串转换成整数或浮点数。"""
     try:
         return int(s)
@@ -62,7 +62,7 @@ def to_number(s: str)->Union[int,float]:
             return 0.0 if "." in s else 0
 
 
-def normalize_command_name(text: str) -> list[str]:
+def tokenize_command_name(text: str) -> list[str]:
     """当输入字符串以命令符（句点“.”、句号“。”、叹号“!”或“！”）开头，给出按命令名词法切分后的列表，否则返回空列表。
 
     将对输入字符串"! Ｆｏｏ  BÄR114514 "进行下述Unicode变换。
@@ -105,9 +105,6 @@ def normalize_command_name(text: str) -> list[str]:
         if text[0] in ".。!！"
         else []
     )
-
-
-TYPES = {k: re.compile(v) for k, v in {int: r""}.items()}
 
 
 def parse_command(

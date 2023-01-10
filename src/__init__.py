@@ -7,7 +7,7 @@ from typing import Any, ClassVar, Optional, Union, overload
 
 import requests
 
-from .humanity import normalize_command_name, parse_command
+from .humanity import tokenize_command_name, parse_command
 
 
 class ChatbotBehavior:
@@ -243,8 +243,7 @@ class ChatbotBehavior:
 
         on_command_×××方法的参数必须是。
         """
-        arguments = locals().copy()
-        parts = normalize_command_name(text)
+        parts = tokenize_command_name(text)
         while parts:
             f = getattr(self, "on_command_" + "".join(parts), None)
             if callable(f):
@@ -255,7 +254,12 @@ class ChatbotBehavior:
                             for parameter in inspect.signature(f).parameters.values()
                             if parameter.annotation is not parameter.empty
                         },
-                        arguments,
+                        {
+                            "context": context,
+                            "sender": sender,
+                            "text": text,
+                            "message_id": message_id,
+                        },
                         # 在原始字符串中找到命令名之后的部分。
                         # 证明一下这个二分法数据的单调性？
                         # 平时做算法题怎么都想不到二分答案——而且这除了用来做算法题以外有什么用啊！
@@ -264,7 +268,7 @@ class ChatbotBehavior:
                             bisect_left(
                                 range(1, 111),
                                 parts,
-                                key=lambda i: normalize_command_name(text[:i]),
+                                key=lambda i: tokenize_command_name(text[:i]),
                             ) :
                         ].strip(),
                     ),
