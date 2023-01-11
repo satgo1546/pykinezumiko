@@ -2,11 +2,13 @@ import inspect
 import time
 from collections import OrderedDict
 from collections.abc import Generator
-from typing import Any, Callable, ClassVar, NoReturn, Optional, Union, overload
+from typing import Any, Callable, ClassVar, NoReturn, Optional, TypeVar, Union, overload
 
 import requests
 
 from . import humanity
+
+CallableT = TypeVar("CallableT", bound=Callable)
 
 
 def bisect_left(a, x, lo, key):
@@ -292,12 +294,32 @@ class ChatbotBehavior:
         return self.on_message(context, sender, text, message_id)
 
     @staticmethod
-    def documented(under: Optional[Callable] = None) -> Callable[[Callable], Callable]:
+    def documented(
+        under: Optional[Callable] = None,
+    ) -> Callable[[CallableT], CallableT]:
+        """使用此装饰器添加单条命令帮助的第一行到帮助索引命令中。
+
+        要添加到总目录.help中：
+
+            @ChatbotBehavior.documented()
+            def on_command_foo(self):
+                ...
+
+        要作为子命令添加到某一其他命令的帮助中：
+
+            @ChatbotBehavior.documented(on_command_foo)
+            def on_command_foo_bar(self):
+                ...
+        """
         if under is None:
             under = HelpProvider.on_command_help
 
-        def decorator(f: Callable) -> Callable:
-            under.__doc__ = (under.__doc__ or "") + (f.__doc__ or "")
+        def decorator(f: CallableT) -> CallableT:
+            under.__doc__ = (
+                (inspect.getdoc(under.__doc__) or "")
+                + "\n‣ "
+                + (f.__doc__ or "").partition("\n")[0].strip()
+            )
             return f
 
         return decorator
@@ -365,5 +387,5 @@ class NameCacheUpdater(ChatbotBehavior):
 class HelpProvider(ChatbotBehavior):
     """提供.help命令的插件。@ChatbotBehavior.documented默认将帮助信息置于此处。"""
 
-    def on_command_help(self, x: NoReturn):
+    def on_command_help(self, _: NoReturn):
         pass
