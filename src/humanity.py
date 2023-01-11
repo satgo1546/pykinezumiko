@@ -1,7 +1,7 @@
 import re
 import unicodedata
 from itertools import filterfalse, groupby
-from typing import Any, Optional, SupportsInt, Union
+from typing import Any, NoReturn, Optional, SupportsInt, Union
 
 
 def format_timespan(seconds: SupportsInt) -> str:
@@ -136,6 +136,7 @@ def parse_command(
 
     仅支持下列基本数据类型。
 
+    - Never（NoReturn）。该参数必定匹配失败。因为匹配失败时会显示帮助信息，所以可用于实现.help等没有实际功能的命令。
     - int和float。
     - str。因为参数用空白分割，只有最后一个str参数才会笼络空白。
 
@@ -153,7 +154,9 @@ def parse_command(
         text = text.strip()
 
         # 根据参数类型匹配字符串。
-        if parameter is int:
+        if parameter is NoReturn:
+            match = None
+        elif parameter is int:
             match = match_start_or_end(
                 r"[+-]?(\d+|0x[0-9a-f]+|0o[0-7]+|0b[01]+)", text, re.IGNORECASE
             )

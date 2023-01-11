@@ -30,6 +30,7 @@ class Demonstration(ChatbotBehavior):
         time.sleep(8)
         return "被回调。"
 
+    @ChatbotBehavior.documented()
     def on_command_猜数字(self) -> Generator[str, str, Union[None, bool, str]]:
         # 注意观察下列代码与控制台程序有多么相像。
         def number_guessing_in_console() -> None:

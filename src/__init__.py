@@ -2,7 +2,7 @@ import inspect
 import time
 from collections import OrderedDict
 from collections.abc import Generator
-from typing import Any, ClassVar, Optional, Union, overload
+from typing import Any, Callable, ClassVar, NoReturn, Optional, Union, overload
 
 import requests
 
@@ -291,6 +291,17 @@ class ChatbotBehavior:
             parts.pop()
         return self.on_message(context, sender, text, message_id)
 
+    @staticmethod
+    def documented(under: Optional[Callable] = None) -> Callable[[Callable], Callable]:
+        if under is None:
+            under = HelpProvider.on_command_help
+
+        def decorator(f: Callable) -> Callable:
+            under.__doc__ = (under.__doc__ or "") + (f.__doc__ or "")
+            return f
+
+        return decorator
+
     def on_message(self, context: int, sender: int, text: str, message_id: int):
         """当收到消息时执行此函数。
 
@@ -349,3 +360,10 @@ class NameCacheUpdater(ChatbotBehavior):
             self._name_cache[sender] = self._name_cache[sender, sender] = nickname
             self._name_cache[context, sender] = data["sender"].get("card") or nickname
         return False
+
+
+class HelpProvider(ChatbotBehavior):
+    """提供.help命令的插件。@ChatbotBehavior.documented默认将帮助信息置于此处。"""
+
+    def on_command_help(self, x: NoReturn):
+        pass
