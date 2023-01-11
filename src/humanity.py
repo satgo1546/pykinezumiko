@@ -142,8 +142,10 @@ def parse_command(
 
     :param given_arguments: 已知的参数。如果需要其中的参数，就直接赋予，不从字符串中解析。
     :param text: 待解析的字符串。
+    :raises: CommandSyntaxError
     """
     kwargs = {}
+    first_parameter = True
     last_str_parameter_name = None
     for name, parameter in parameters.items():
         if name in given_arguments:
@@ -168,19 +170,26 @@ def parse_command(
             last_str_parameter_name = name
             match = re.match(r"\S+", text)
         else:
-            raise TypeError(f"参数 {name} 拥有不能理解的参数类型")
+            raise CommandSyntaxError(f"插件命令的参数 {name} 拥有不能理解的参数类型。")
 
         # 将值填入参数表中。
         if match:
+            first_parameter = False
             kwargs[name] = parameter(match.group())
             text = text[: match.start()] + text[match.end() :]
+        elif first_parameter:
+            raise CommandSyntaxError()
         else:
-            raise SyntaxError(f"找不到参数 {name}")
+            raise CommandSyntaxError(f"解析命令时找不到参数 {name}。")
 
     # 清理解析完所有参数后剩下的字符串。
     if text.lstrip():
         if last_str_parameter_name:
             kwargs[last_str_parameter_name] += text
         else:
-            raise SyntaxError(f"残留未成功解析的参数“{text}”")  # 滥用系统自带的异常类型
+            raise CommandSyntaxError(f"残留未成功解析的参数“{text}”。")
     return kwargs
+
+
+class CommandSyntaxError(Exception):
+    pass

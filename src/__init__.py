@@ -262,8 +262,8 @@ class ChatbotBehavior:
             name = "".join(parts)
             f = getattr(self, "on_command_" + name, None)
             if callable(f):
-                return f(
-                    **humanity.parse_command(
+                try:
+                    kwargs = humanity.parse_command(
                         {
                             parameter.name: parameter.annotation
                             for parameter in inspect.signature(f).parameters.values()
@@ -287,8 +287,10 @@ class ChatbotBehavior:
                                 key=lambda i: humanity.normalize(text[1:i]),
                             ) :
                         ].strip(),
-                    ),
-                )
+                    )
+                except humanity.CommandSyntaxError as e:
+                    return e.args[0] if e.args else inspect.getdoc(f)
+                return f(**kwargs)
             # 从长到短，一段一段截下，再尝试取用属性。
             parts.pop()
         return self.on_message(context, sender, text, message_id)
@@ -318,7 +320,13 @@ class ChatbotBehavior:
             under.__doc__ = (
                 (inspect.getdoc(under.__doc__) or "")
                 + "\n‣ "
-                + (f.__doc__ or "").partition("\n")[0].strip()
+                + (
+                    f.__doc__
+                    or humanity.command_prefix[0]
+                    + f.__name__.removeprefix("on_command_")
+                )
+                .partition("\n")[0]
+                .strip()
             )
             return f
 
