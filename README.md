@@ -31,11 +31,16 @@
 
 端口号是go-cqhttp自动生成的配置文件中的默认值，现在写死了，改的话要改好几个地方。go-cqhttp收到消息时，会发送请求给Flask端。Flask端想要发出消息时，会调用requests库向go-cqhttp发出请求。这是标准的go-cqhttp通信流程。
 
-仓库中已经包含了能让它在树莓派上运行的全部资源，包括go-cqhttp的ARM64二进制、上线的配置`config.yml`、常用设备信息`device.json`、会话令牌`session.token`。额外需要安装的包列表如下：
+仓库中已经包含了能让它在树莓派上运行的全部资源，包括go-cqhttp的ARM64二进制、上线的配置`config.yml`、常用设备信息`device.json`、会话令牌`session.token`。额外需要的材料列表如下：
 
-- git
-- python3-requests
-- python3-flask
+- 烧瓶
+- 枕头
+- 三条巨蟒的请求书
+- G.I.T.
+
+```sh
+sudo apt-get install python3-flask python3-pil python3-requests git
+```
 
 运行方法是在两个窗口分别启动go-cqhttp（`./go-cqhttp`）和消息处理端的守护程序（`./daemon.py`）。使用Raspbian自带的Python即可，无需创建虚拟环境等。因为重启go-cqhttp需要重新发送登录信息，甚至重新扫码（`session.token`失效的场合），所以尽量少重启go-cqhttp。
 
