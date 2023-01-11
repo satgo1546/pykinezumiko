@@ -318,7 +318,7 @@ class ChatbotBehavior:
 
         def decorator(f: CallableT) -> CallableT:
             under.__doc__ = (
-                (inspect.getdoc(under.__doc__) or "")
+                (inspect.getdoc(under) or "")
                 + "\n‣ "
                 + (
                     f.__doc__
