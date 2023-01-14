@@ -3,6 +3,19 @@ from .. import ChatbotBehavior
 
 
 class Code(ChatbotBehavior):
+    @ChatbotBehavior.documented()
+    # 由于on_command_u+不是合法的标识符名称，只能先定义一个别名，然后在类定义完全后setattr。
+    def on_command_unicode(self, s: str):
+        """.u+ ⟨210F|ℏ⟩（Unicode 码位）"""
+        r = []
+        for w in s.split():
+            if re.fullmatch(r"[0-9A-Fa-f]{1,6}", w):
+                r.append(f"{int(w,16):c} U+{w.upper():04s}")
+            else:
+                for c in w:
+                    r.append(f"{c!r} U+{ord(c):04X}")
+        return "\n".join(r)
+
     MORSE_TABLE = {
         "A": ".-",
         "B": "-...",
@@ -65,3 +78,6 @@ class Code(ChatbotBehavior):
             s,
         )
         return s
+
+
+setattr(Code, "on_command_u+", Code.on_command_unicode)
