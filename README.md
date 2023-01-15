@@ -44,16 +44,19 @@
 
 额外需要的材料列表如下：
 
-- 烧瓶
-- 枕头
-- 三条巨蟒的请求书
-- G.I.T.
+- 至少3.9条巨蟒和它们的
+    - 烧瓶
+    - 枕头
+    - 请求书
+- G.I.T.（需要恶魔帮助的话）
 
 ```sh
 sudo apt-get install python3-flask python3-pil python3-requests git
 ```
 
-运行方法是在两个窗口分别启动go-cqhttp（`./go-cqhttp`）和消息处理端的守护程序（`./daemon.py`）。使用Raspbian自带的Python即可，无需创建虚拟环境等。因为重启go-cqhttp需要重新发送登录信息，甚至重新扫码（`session.token`失效的场合），所以尽量少重启go-cqhttp。
+还需要在conf.py中配置少量紧急情况也需要使用的信息。
+
+运行方法是在两个窗口分别启动go-cqhttp（`./go-cqhttp`）和消息处理端（直接运行`python -m src`或依靠守护程序`./daemon.py`）。使用Raspbian自带的Python即可，无需创建虚拟环境等。因为重启go-cqhttp需要重新发送登录信息，甚至重新扫码（`session.token`失效的场合），所以尽量少重启go-cqhttp。
 
 守护进程每隔一定时间就会执行git add—git commit—git push三连，当推送失败时则会自动拉取、合并再推送。数据文件自然可以如此更新，而因Flask服务器开启debug=True，程序被更新时也能自动重启，守护进程不负责杀Flask。当Flask进程退出时，如果退出代码为零，守护进程会立即与仓库同步并重启Flask进程；如果退出代码不为零，则持续与仓库同步，在没有pull到新数据前不尝试重启。
 
