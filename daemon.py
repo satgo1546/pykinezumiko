@@ -54,7 +54,7 @@ def report(text: object) -> None:
         requests.get(
             f"http://127.0.0.1:5700/send_msg",
             {
-                "group_id": conf.INTERIOR,
+                "group_id" if conf.INTERIOR < 0 else "user_id": abs(conf.INTERIOR),
                 "message": f"\U0001f608 {text}",
             },
         )
