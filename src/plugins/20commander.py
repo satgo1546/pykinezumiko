@@ -5,8 +5,7 @@ import tarfile
 import tempfile
 import time
 
-from ... import conf
-from .. import ChatbotBehavior
+from .. import ChatbotBehavior, conf
 from ..humanity import format_timespan
 
 

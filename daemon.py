@@ -7,7 +7,7 @@ import time
 
 import requests
 
-from . import conf
+from src import conf
 
 os.chdir(os.path.dirname(__file__))
 
