@@ -25,3 +25,7 @@ venv.bak/
 
 # go-cqhttp产生的缓存
 /data
+
+# sphinx.py产生的文件
+/_docs/
+/_site/
