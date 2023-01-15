@@ -77,7 +77,7 @@ class Code(ChatbotBehavior):
         r = []
         for w in s.split():
             if re.fullmatch(r"[0-9A-Fa-f]{1,6}", w):
-                r.append(f"{int(w,16):c} U+{w.upper():04s}")
+                r.append(f"{int(w, 16):c} U+{w.upper():>04s}")
             else:
                 for c in w:
                     r.append(f"{c!r} U+{ord(c):04X}")
