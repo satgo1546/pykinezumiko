@@ -1,4 +1,5 @@
-"""存储到处都要使用的全局配置。"""
+#!/usr/bin/env python3
+"""存储到处都要使用的全局配置；运行本脚本调用Sphinx生成文档页。"""
 import os
 import sys
 
@@ -22,4 +23,27 @@ html_theme = "basic"
 html_static_path = ["../docs/resources"]
 html_css_files = ["custom.css"]
 
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+project_root = os.path.dirname(os.path.dirname(__file__))
+sys.path.append(project_root)
+
+if __name__ == "__main__":
+    os.chdir(project_root)
+    import subprocess
+    import shutil
+
+    subprocess.run(
+        [
+            "sphinx-apidoc",
+            "--force",
+            "--implicit-namespaces",
+            "--module-first",
+            "-o",
+            "_docs",
+            "src",
+        ],
+        check=True,
+    )
+    shutil.copyfile("index.rst", "_docs/index.rst")
+    subprocess.run(
+        ["sphinx-build", "-a", "-b", "html", "-c", "src", "_docs", "_site"], check=True
+    )
