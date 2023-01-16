@@ -10,7 +10,7 @@ class Clock(ChatbotBehavior):
     def __init__(self) -> None:
         super().__init__()
         # 存储路径
-        self.path = '/logs/20clock.pickle'
+        self.path = 'logs/20clock.pickle'
         # 提醒队列
         t = []
         if os.path.isfile(self.path):
