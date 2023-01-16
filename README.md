@@ -56,7 +56,7 @@ sudo apt-get install python3-flask python3-pil python3-requests git
 
 还需要在conf.py中配置少量紧急情况也需要使用的信息。
 
-运行方法是在两个窗口分别启动go-cqhttp（`./go-cqhttp`）和消息处理端（直接运行`python -m src`或依靠守护程序`./daemon.py`）。使用Raspbian自带的Python即可，无需创建虚拟环境等。因为重启go-cqhttp需要重新发送登录信息，甚至重新扫码（`session.token`失效的场合），所以尽量少重启go-cqhttp。
+运行方法是在两个窗口分别启动go-cqhttp（`./go-cqhttp`）和消息处理端（直接运行`python -m pykinezumiko`或依靠守护程序`python -m pykinezumiko.daemon`）。使用Raspbian自带的Python即可，无需创建虚拟环境等。因为重启go-cqhttp需要重新发送登录信息，甚至重新扫码（`session.token`失效的场合），所以尽量少重启go-cqhttp。
 
 守护进程每隔一定时间就会执行git add—git commit—git push三连，当推送失败时则会自动拉取、合并再推送。数据文件自然可以如此更新，而因Flask服务器开启debug=True，程序被更新时也能自动重启，守护进程不负责杀Flask。当Flask进程退出时，如果退出代码为零，守护进程会立即与仓库同步并重启Flask进程；如果退出代码不为零，则持续与仓库同步，在没有pull到新数据前不尝试重启。
 
@@ -64,7 +64,7 @@ sudo apt-get install python3-flask python3-pil python3-requests git
 
 ## 以下功能在梦里有
 
-因为在x86-64电脑上没法运行ARM64的程序，即使替换成x86-64版本的程序来尝试运行也势必会把树莓派上正在工作的踢下线，所以有个办法不需要真的登录QQ也能运行起一部分代码。单纯运行`python -m src`的话，只会启动Flask端。用浏览器访问`http://localhost:5701/`，因为检测到是来自浏览器的GET而非来自go-cqhttp的POST，就会提供一个假的聊天窗口。因为是假的聊天窗口，所以很多功能都用不了，只适合用来测试聊天AI，与QQ绑定的逻辑还是要传到树莓派上实机测试。
+因为在x86-64电脑上没法运行ARM64的程序，即使替换成x86-64版本的程序来尝试运行也势必会把树莓派上正在工作的踢下线，所以有个办法不需要真的登录QQ也能运行起一部分代码。单纯运行`python -m pykinezumiko`的话，只会启动Flask端。用浏览器访问`http://localhost:5701/`，因为检测到是来自浏览器的GET而非来自go-cqhttp的POST，就会提供一个假的聊天窗口。因为是假的聊天窗口，所以很多功能都用不了，只适合用来测试聊天AI，与QQ绑定的逻辑还是要传到树莓派上实机测试。
 
 ### clock todos
 

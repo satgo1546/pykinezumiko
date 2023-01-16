@@ -23,11 +23,9 @@ html_theme = "basic"
 html_static_path = ["../docs/resources"]
 html_css_files = ["custom.css"]
 
-project_root = os.path.dirname(os.path.dirname(__file__))
-sys.path.append(project_root)
+sys.path.append(os.getcwd())
 
 if __name__ == "__main__":
-    os.chdir(project_root)
     import subprocess
     import shutil
 
@@ -39,11 +37,21 @@ if __name__ == "__main__":
             "--module-first",
             "-o",
             "_docs",
-            "src",
+            "pykinezumiko",
         ],
         check=True,
     )
     shutil.copyfile("index.rst", "_docs/index.rst")
     subprocess.run(
-        ["sphinx-build", "-a", "-b", "html", "-c", "src", "_docs", "_site"], check=True
+        [
+            "sphinx-build",
+            "-a",
+            "-b",
+            "html",
+            "-c",
+            "pykinezumiko",
+            "_docs",
+            "_site",
+        ],
+        check=True,
     )

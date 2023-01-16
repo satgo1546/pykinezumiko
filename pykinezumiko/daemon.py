@@ -1,15 +1,13 @@
-#!/usr/bin/env python3
 import logging
 import os
 import subprocess
 import sys
 import time
+from typing import NoReturn
 
 import requests
 
-from src import conf
-
-os.chdir(os.path.dirname(__file__))
+from . import conf
 
 
 def checkPullThenPush() -> None:
@@ -71,40 +69,46 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-process = None
-start_time = time.strftime("%c %z")
-restart_count = 0
-while True:
-    # process为空 = 第一轮循环：启动Flask
-    # returncode不为空 = 上一轮循环时Flask寄了：重启Flask
-    if process is None or process.returncode is not None:
-        restart_count += 1
-        message = "通过守护脚本启动"
-        if process and process.returncode is not None:
-            message = f"自 {start_time} 以来第 {restart_count} 回重新启动进程"
-            if process.returncode:
-                message += f"，上回进程异常退出代码 {process.returncode}"
-        process = subprocess.Popen([sys.executable, "-m", "src", message])
-    try:
-        if process.wait(7777):
-            print("Flask进程异常退出，等待仓库更新")
-            report(f"Flask进程寄啦！（{process.returncode}）")
-            # 迫真慢启动……
-            time.sleep(7)
-            if pullIsAlreadyUpToDate():
-                time.sleep(77)
+
+def main() -> NoReturn:
+    process = None
+    start_time = time.strftime("%c %z")
+    restart_count = 0
+    while True:
+        # process为空 = 第一轮循环：启动Flask
+        # returncode不为空 = 上一轮循环时Flask寄了：重启Flask
+        if process is None or process.returncode is not None:
+            restart_count += 1
+            message = "通过守护脚本启动"
+            if process and process.returncode is not None:
+                message = f"自 {start_time} 以来第 {restart_count} 回重新启动进程"
+                if process.returncode:
+                    message += f"，上回进程异常退出代码 {process.returncode}"
+            process = subprocess.Popen([sys.executable, "-m", "pykinezumiko", message])
+        try:
+            if process.wait(7777):
+                print("Flask进程异常退出，等待仓库更新")
+                report(f"Flask进程寄啦！（{process.returncode}）")
+                # 迫真慢启动……
+                time.sleep(7)
                 if pullIsAlreadyUpToDate():
                     time.sleep(77)
                     if pullIsAlreadyUpToDate():
                         time.sleep(77)
                         if pullIsAlreadyUpToDate():
-                            time.sleep(777)
-                            while pullIsAlreadyUpToDate():
-                                time.sleep(7777)
-        else:
-            print("Flask进程正常退出，同步并重启")
+                            time.sleep(77)
+                            if pullIsAlreadyUpToDate():
+                                time.sleep(777)
+                                while pullIsAlreadyUpToDate():
+                                    time.sleep(7777)
+            else:
+                print("Flask进程正常退出，同步并重启")
+                checkPullThenPush()
+                report("Flask进程正常退出，已完成同步，即将重启。")
+        except subprocess.TimeoutExpired:
+            # Flask进程仍在正常运行
             checkPullThenPush()
-            report("Flask进程正常退出，已完成同步，即将重启。")
-    except subprocess.TimeoutExpired:
-        # Flask进程仍在正常运行
-        checkPullThenPush()
+
+
+if __name__ == "__main__":
+    main()

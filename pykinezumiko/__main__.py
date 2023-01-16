@@ -5,10 +5,9 @@ from flask import Flask, request
 from . import ChatbotBehavior
 
 # 从plugins文件夹下加载所有Python模块。
-os.chdir(os.path.dirname(os.path.dirname(__file__)))
 for module in sorted(
-    "src.plugins." + filename.removesuffix(".py")
-    for filename in os.listdir("src/plugins")
+    "pykinezumiko.plugins." + filename.removesuffix(".py")
+    for filename in os.listdir("pykinezumiko/plugins")
     if filename.endswith(".py")
 ):
     importlib.import_module(module, ".")
