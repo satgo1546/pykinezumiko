@@ -2,14 +2,34 @@ import html
 import math
 import os
 import re
+import xml.etree.ElementTree as ET
 import zipfile
-from collections.abc import Iterable, Mapping
-from datetime import datetime
+from collections import defaultdict
+from collections.abc import Iterable, Iterator, Mapping
 from functools import reduce
 from typing import IO, Union
 
-EPOCH = datetime(1899, 12, 30)
 CellValue = Union[None, bool, int, float, str]
+"""支持的单元格值类型。
+
+无法区分整数和浮点数，NaN和无穷也无法准确存储。
+
+Excel没有专门的日期/时间类型，而是用数字代替，就像Unix时间戳一样。
+单元格内存储的数值表示从1900年1月0日起、包含1900年2月29日在内的天数（？？？）。
+而且，作为深度本地化的受害者，是按计算机设置的时区计算的。
+
+- 0.5 = 当地时间1900年1月0日12:00:00，Excel无法显示1899年及以前的日期
+- π = 当地时间1900年1月3日03:23:53.605
+- 7162+42314/86400 = 当地时间1919年8月10日11:45:14
+- 25569 = 当地时间1970年1月1日00:00:00
+
+然而，因为早期Macintosh电脑不支持1904年以前的日期，所以改成了1904年1月0日起的天数。
+直到今天，仍然可以在工作簿选项中自选“使用1904日期系统”。大混乱。
+为了不被迫感受小小的Excel震撼，建议不要在数据交换中使用Excel的日期与时间。
+
+https://learn.microsoft.com/en-us/office/troubleshoot/excel/wrongly-assumes-1900-is-leap-year
+https://learn.microsoft.com/en-us/office/troubleshoot/excel/1900-and-1904-date-system
+"""
 
 
 def column_letter_to_number(s: str) -> int:
@@ -52,6 +72,70 @@ def parse_cell_reference(address: str) -> tuple[int, int]:
         return int(match.group(1)) - 1, int(match.group(2)) - 1
     else:
         raise ValueError("错误的单元格引用格式：应类似A1或R1C1")
+
+
+def read(
+    file: Union[str, os.PathLike[str], IO[bytes]]
+) -> dict[str, defaultdict[tuple[int, int], CellValue]]:
+    """读取指定的工作簿。
+
+    返回对象可以以下列形式使用：
+
+        workbook = read("input.xlsx")
+        worksheet = workbook["Sheet1"]
+        cell = worksheet[8, 4]  # 第8行第4列，下标从0开始
+        print("Sheet1!E9的值是", cell)
+    """
+    with zipfile.ZipFile(file, "r") as z:
+        # 先定义一个方便函数。
+        def xq(filename: str, xpath: str) -> Iterator[ET.Element]:
+            """从已打开的这个压缩包中解析XML文件、直达要害节点。"""
+            with z.open(filename, "r") as f:
+                return ET.parse(f).getroot().iterfind(xpath)
+
+        # 从工作簿关系文件中提取从rId×××到sheet×××.xml的映射。
+        workbook_rels = {
+            # Microsoft Excel写出的是相对路径，但openpyxl会写出相对于压缩包根的绝对路径……
+            # ZipFile需要的是相对于压缩包根的相对路径。
+            el.get("Id", ""): "xl/" + el.get("Target", "").removeprefix("/xl/")
+            for el in xq("xl/_rels/workbook.xml.rels", "./{*}Relationship")
+        }
+
+        # 从工作簿清单中按顺序枚举工作表，根据记录的关系，产生从工作表名到工作表XML文件路径的映射。
+        sheets = {
+            el.get("name", ""): workbook_rels[
+                el.get(
+                    # openpyxl有时候不输出"r"命名空间……
+                    "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id",
+                    el.get("id", ""),
+                )
+            ]
+            for el in xq("xl/workbook.xml", "./{*}sheets/{*}sheet")
+        }
+
+        # 取出共享字符串池为字符串列表。共享字符串池的下标从0开始。
+        if "xl/sharedStrings.xml" in z.NameToInfo:
+            shared_strings = [
+                "".join(t.text or "" for t in el.iterfind(".//{*}t"))
+                for el in xq("xl/sharedStrings.xml", "./{*}si")
+            ]
+        else:
+            shared_strings = []
+
+        # 读取工作表数据。
+        workbook: dict[str, defaultdict[tuple[int, int], CellValue]] = {}
+        for sheet_name, filename in sheets.items():
+            workbook[sheet_name] = defaultdict(
+                str,
+                (
+                    (
+                        parse_cell_reference(el.get("r", "")),
+                        _cell_to_value(el, shared_strings),
+                    )
+                    for el in xq(filename, "./{*}sheetData/{*}row/{*}c")
+                ),
+            )
+        return workbook
 
 
 def write(
@@ -97,13 +181,15 @@ def write(
     """
     # 接下来将会多次出现的r:id="rId×××"并不是只有这一种固定格式。
     # OOXML是通过像Java那样狂写XML配置来表明文件之间关联的。
-    # 然而，第三方软件完全不理解这一点，直接使用文件名和关系ID的索引来分析文件的库不在少数。
+    # 因此，只要引用标识符一致性正确，理论上文件名随便是什么都没问题。
+    # 然而，第三方软件完全不理解这一点，直接使用文件名和关系ID的索引来分析文件的库不在少数——本模块也是。
     # 为了尽可能兼容，还是按照Office的所作所为来做比较好。
 
     # https://insutanto.net/tag/Excel
     # https://zhuanlan.zhihu.com/p/386085542
 
     # 共享字符串池是从字符串到加入顺序（从0开始）的映射。
+    # 即使是只用到一次的字符串也会存在这里，未见有文件用单元格类型t="inlineStr"。
     # 因为找不到字符串时就加入，且从不删除条目，所以满足以下不变量，即字典值是从0开始按顺序的连续整数。
     #     list(shared_strings.values()) == list(range(len(shared_strings)))
     shared_strings: dict[str, int] = {}
@@ -227,8 +313,8 @@ def _value_to_cell(x: CellValue, shared_strings: dict[str, int]) -> str:
             shared_strings[x] = len(shared_strings)
         return f't="s"><v>{shared_strings[x]}</v>'
     elif isinstance(x, bool):
-        # 布尔值。
-        return f't="b"><v>{x}</v>'
+        # 布尔值，用0和1表示。
+        return f't="b"><v>{x:d}</v>'
     elif isinstance(x, float) and math.isnan(x):
         # 借用#NUM!表示NaN。
         return f't="e"><v>#NUM!</v>'
@@ -256,4 +342,52 @@ def _value_to_cell(x: CellValue, shared_strings: dict[str, int]) -> str:
     # 这些值还能作为字面量在公式中导致报错，例如=IF(A1>0,A1-1,#NUM!)。Excel，很神奇吧？
 
 
-write("output.xlsx", {"工作表114514": {11: {2: "妙的", 3: "不妙的"}.items()}.items()})
+def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellValue:
+    """转换<c>元素到Python数据。"""
+    t = el.get("t")
+    value = el.find("./{*}v")
+    value = value.text or "" if value is not None else ""
+    formula = el.find("./{*}f")
+    formula = formula.text or "" if formula is not None else ""
+
+    if t == "s":
+        return shared_strings[int(value)]
+    elif t == "b":
+        return value != "0"
+    elif t == "str" or not value:
+        # str类型表示公式计算结果是字符串类型，值不经过共享字符串池。
+        # 空白单元格以空字符串表示。
+        # 有时会有只有样式（s属性）的单元格，也按此处理。
+        pass
+    elif t == "e":
+        if value == "#N/A":
+            return None
+        else:
+            return math.nan
+    elif re.fullmatch(r"-?[0-9]+", value):
+        return int(value)
+    else:
+        return float(value)
+
+
+write(
+    "output.xlsx",
+    {"工作表114514": {11: {2: "妙的", 3: "不妙的", 4: 114.514, 5: math.nan}.items()}.items()},
+)
+db = read("output.xlsx")
+from pprint import pprint
+from timeit import timeit
+
+print(
+    timeit(
+        lambda: write(
+            "output.xlsx",
+            {"哼哼": ((i, ((j, i + j) for j in range(11))) for i in range(1919))},
+        ),
+        number=100,
+    )
+    / 100
+)
+pprint(db["工作表114514"])
+db = read("工作簿1.xlsx")
+pprint(db["Sheet2"])
