@@ -1,12 +1,14 @@
 import base64
-from functools import cache
 import io
-from itertools import tee
 import math
 import re
-from typing import NamedTuple, TypeVar, Iterable, Iterator
+from functools import cache
+from itertools import tee
+from typing import Iterable, Iterator, NamedTuple, TypeVar
+
 from PIL import Image, ImageDraw, ImageFont
 
+from . import conf
 
 T = TypeVar("T")
 
@@ -212,30 +214,30 @@ def text_bitmap(
             width + (margin + border + padding_inline) * 2,
             height + (margin + border + padding_block) * 2,
         ),
-        "#fff3df",
+        conf.THEME[3],
     )
     draw = ImageDraw.Draw(img)
     draw.rectangle(
         ((0, 0), img.size),
-        outline="#ffcc80",
+        outline=conf.THEME[2],
         width=margin,
     )
     draw.rectangle(
         ((margin, margin), (img.width - margin, img.height - margin)),
-        outline="#b53c00",
+        outline=conf.THEME[1],
         width=border,
     )
     for y in range(line_height - 1, height, line_height):
         y += margin + border + padding_block
         for x in range(0, width, dash_on + dash_off):
             x += margin + border + padding_inline
-            img.paste("#ffcc80", (x, y, x + dash_on, y + 1))
+            img.paste(conf.THEME[2], (x, y, x + dash_on, y + 1))
     for y, line in enumerate(lines):
         y *= line_height
         y += margin + border + padding_block + font.size // 2
         for x, item in line:
             x += margin + border + padding_inline
-            draw.text((x, y), item, fill="black", font=font)
+            draw.text((x, y), item, fill=conf.THEME[0], font=font)
     return img.resize((img.width * scale, img.height * scale), resample=Image.BOX)
 
 
