@@ -9,6 +9,8 @@ from collections.abc import Iterable, Iterator, Mapping
 from functools import reduce
 from typing import IO, Union
 
+from . import conf
+
 CellValue = Union[None, bool, int, float, str]
 """支持的单元格值类型。
 
@@ -197,13 +199,15 @@ def write(
     with zipfile.ZipFile(file, "w") as zf:
         zf.writestr(
             "[Content_Types].xml",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
     <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
     <Default Extension="xml" ContentType="application/xml"/>
+    <Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml" />
     <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
     %s
     <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
+    <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml" />
 </Types>"""
             % "".join(
                 f'<Override PartName="/xl/worksheets/sheet{i}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
@@ -213,7 +217,7 @@ def write(
 
         zf.writestr(
             "_rels/.rels",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
     <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
 </Relationships>""",
@@ -221,7 +225,7 @@ def write(
 
         zf.writestr(
             "xl/workbook.xml",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
     <workbookPr/>
     <sheets>
@@ -238,7 +242,7 @@ def write(
         for shID, sheet in enumerate(data.values(), 1):
             with zf.open(f"xl/worksheets/sheet{shID}.xml", "w") as f:
                 f.write(
-                    b"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    b"""<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
     <sheetFormatPr customHeight="1" defaultRowHeight="20" defaultColWidth="6"/>
     <cols>
@@ -264,13 +268,17 @@ def write(
 
         # rId1..rId(N) = 工作表。
         # rId(N+1) = 共享字符串池。
+        # rId(N+2) = 样式表。
+        # rId(N+3) = 文档主题。
         # sheets first for rId# then theme > styles > sharedStrings
         zf.writestr(
             "xl/_rels/workbook.xml.rels",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
     %s
     <Relationship Target="sharedStrings.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Id="rId%d"/>
+    <Relationship Target="styles.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Id="rId%d"/>
+    <Relationship Target="theme/theme1.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Id="rId%d"/>
 </Relationships>"""
             % (
                 "".join(
@@ -278,14 +286,17 @@ def write(
                     for i in range(1, len(data) + 1)
                 ),
                 len(data) + 1,
+                len(data) + 2,
+                len(data) + 3,
             ),
         )
 
-        # 最后写入共享字符串池，因为在写入其他组件时会更新共享字符串池。
-        # 如果不设置xml:space="preserve"的话，字符串中的前导和尾随空格会被XML解析器吞掉。
+        # 最后写入共享字符串池和样式表，因为在写入其他组件时会更新这些表。
         zf.writestr(
             "xl/sharedStrings.xml",
-            """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            # 如果不设置xml:space="preserve"的话，字符串中的前导和尾随空格会被XML解析器吞掉。
+            # 设置了就一定有用吗？
+            """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <sst uniqueCount="%d" count="%d" xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xml:space="preserve">%s</sst>"""
             % (
                 len(shared_strings),
@@ -293,6 +304,129 @@ def write(
                 "".join(
                     f"<si><t>{html.escape(val)}</t></si>" for val in shared_strings
                 ),
+            ),
+        )
+
+        zf.writestr(
+            "xl/styles.xml",
+            """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+    <colors>
+        <indexedColors>
+            <rgbColor rgb="00000000"/>
+            <rgbColor rgb="00FFFFFF"/>
+            <rgbColor rgb="00FF0000"/>
+            <rgbColor rgb="0000FF00"/>
+            <rgbColor rgb="000000FF"/>
+            <rgbColor rgb="00FFFF00"/>
+            <rgbColor rgb="00FF00FF"/>
+            <rgbColor rgb="0000FFFF"/>
+            <rgbColor rgb="00000000"/>
+            <rgbColor rgb="00FFFFFF"/>
+            <rgbColor rgb="00FF0000"/>
+            <rgbColor rgb="0000FF00"/>
+            <rgbColor rgb="000000FF"/>
+            <rgbColor rgb="00FFFF00"/>
+            <rgbColor rgb="00FF00FF"/>
+            <rgbColor rgb="0000FFFF"/>
+            <rgbColor rgb="00800000"/>
+            <rgbColor rgb="00008000"/>
+            <rgbColor rgb="00000080"/>
+            <rgbColor rgb="00808000"/>
+            <rgbColor rgb="00800080"/>
+            <rgbColor rgb="00008080"/>
+            <rgbColor rgb="00C0C0C0"/>
+            <rgbColor rgb="00808080"/>
+            %s
+        </indexedColors>
+    </colors>
+</styleSheet>"""
+            % (
+                "".join(
+                    '<rgbColor rgb="00%s"/>' % color.removeprefix("#").upper()
+                    for color in conf.THEME + conf.ACCENTS + ("000000",) * 30
+                )
+            ),
+        )
+
+        zf.writestr(
+            "xl/theme/theme1.xml",
+            """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="​​a">
+    <a:themeElements>
+        <a:clrScheme name="a">
+            <a:dk1><a:srgbClr val="%s"/></a:dk1>
+            <a:lt1><a:srgbClr val="%s"/></a:lt1>
+            <a:dk2><a:srgbClr val="%s"/></a:dk2>
+            <a:lt2><a:srgbClr val="%s"/></a:lt2>
+            <a:accent1><a:srgbClr val="%s"/></a:accent1>
+            <a:accent2><a:srgbClr val="%s"/></a:accent2>
+            <a:accent3><a:srgbClr val="%s"/></a:accent3>
+            <a:accent4><a:srgbClr val="%s"/></a:accent4>
+            <a:accent5><a:srgbClr val="%s"/></a:accent5>
+            <a:accent6><a:srgbClr val="%s"/></a:accent6>
+            <a:hlink><a:srgbClr val="0000FF"/></a:hlink>
+            <a:folHlink><a:srgbClr val="800080"/></a:folHlink>
+        </a:clrScheme>
+        <a:fontScheme name="a">
+            <a:majorFont>
+                <a:latin typeface="LM Sans 10"/>
+                <a:ea typeface="FandolHei"/>
+                <a:cs typeface=""/>
+            </a:majorFont>
+            <a:minorFont>
+                <a:latin typeface="LM Sans 10"/>
+                <a:ea typeface="FandolHei"/>
+                <a:cs typeface=""/>
+            </a:minorFont>
+        </a:fontScheme>
+        <a:fmtScheme name="a">
+            <a:fillStyleLst>
+                <a:solidFill>
+                    <a:schemeClr val="phClr"/>
+                </a:solidFill>
+                <a:solidFill>
+                    <a:schemeClr val="phClr">
+                        <a:shade val="50000"/>
+                    </a:schemeClr>
+                </a:solidFill>
+                <a:solidFill>
+                    <a:schemeClr val="phClr">
+                        <a:tint val="50000"/>
+                    </a:schemeClr>
+                </a:solidFill>
+            </a:fillStyleLst>
+            <a:lnStyleLst>
+                <a:ln/>
+                <a:ln/>
+                <a:ln/>
+            </a:lnStyleLst>
+            <a:effectStyleLst>
+                <a:effectStyle><a:effectLst/></a:effectStyle>
+                <a:effectStyle><a:effectLst/></a:effectStyle>
+                <a:effectStyle><a:effectLst/></a:effectStyle>
+            </a:effectStyleLst>
+            <a:bgFillStyleLst>
+                <a:solidFill>
+                    <a:schemeClr val="phClr"/>
+                </a:solidFill>
+                <a:solidFill>
+                    <a:schemeClr val="phClr">
+                        <a:shade val="50000"/>
+                    </a:schemeClr>
+                </a:solidFill>
+                <a:solidFill>
+                    <a:schemeClr val="phClr">
+                        <a:tint val="50000"/>
+                    </a:schemeClr>
+                </a:solidFill>
+            </a:bgFillStyleLst>
+        </a:fmtScheme>
+    </a:themeElements>
+</a:theme>"""
+            % tuple(
+                color.removeprefix("#").upper()
+                for color in conf.THEME[::3] + conf.THEME[1:3] + conf.ACCENTS
             ),
         )
 
