@@ -7,9 +7,11 @@ import zipfile
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Mapping
 from functools import reduce
-from typing import IO, Union
+from typing import IO, Any, Callable, Optional, TypeVar, Union
 
 from . import conf
+
+T = TypeVar("T")
 
 CellValue = Union[None, bool, int, float, str]
 """支持的单元格值类型。
@@ -74,6 +76,22 @@ def parse_cell_reference(address: str) -> tuple[int, int]:
         return int(match.group(1)) - 1, int(match.group(2)) - 1
     else:
         raise ValueError("错误的单元格引用格式：应类似A1或R1C1")
+
+
+def pool(first_value: T, first_index: int = 0) -> defaultdict[T, int]:
+    """创建一个值池，即从值到加入顺序（从指定索引开始）的映射。
+
+    值是新的时，产生新的索引，否则返回原有索引。用于共享字符串池、样式表索引的生成。
+
+        x = pool("foo")  # 池中必须初始包含一个值，帮助类型推断
+        assert x["foo"] == 0
+        assert x["bar"] == 1
+        assert x["baz"] == 2
+        assert x["bar"] == 1
+        assert x["foobar"] == 3
+    """
+    x = defaultdict(lambda: len(x) + first_index, ((first_value, first_index),))
+    return x
 
 
 def read(
@@ -143,6 +161,9 @@ def read(
 def write(
     file: Union[str, os.PathLike[str], IO[bytes]],
     data: Mapping[str, Iterable[tuple[int, Iterable[tuple[int, CellValue]]]]],
+    styler: Callable[
+        [str, int, int, CellValue], tuple[str, str, str, str]
+    ] = lambda *_: ("General", "", "", ""),
 ) -> None:
     """向指定的文件中写出Excel 2007工作簿。
 
@@ -180,6 +201,19 @@ def write(
                 for i, row in groupby(sorted(sheet), lambda x: x[0])
             ),
         })
+
+    通过styler来程序化地指定单元格的样式。只能指定指定了内容的单元格的样式。传入的函数如下述。
+
+        def styler(sheet_name: str, row: int, column: int, value: CellValue):
+            number_format = "General"
+            font = ""
+            fill = ""
+            border = ""
+            # 示例：设置B列为粗体、深色2
+            if column == 1:
+                font = '<b/><color theme="3"/>'
+                fill = '<patternFill patternType="solid"><fgColor theme="0"/></patternFill>'
+            return number_format, font, fill, border
     """
     # 接下来将会多次出现的r:id="rId×××"并不是只有这一种固定格式。
     # OOXML是通过像Java那样狂写XML配置来表明文件之间关联的。
@@ -189,12 +223,6 @@ def write(
 
     # https://insutanto.net/tag/Excel
     # https://zhuanlan.zhihu.com/p/386085542
-
-    # 共享字符串池是从字符串到加入顺序（从0开始）的映射。
-    # 即使是只用到一次的字符串也会存在这里，未见有文件用单元格类型t="inlineStr"。
-    # 因为找不到字符串时就加入，且从不删除条目，所以满足以下不变量，即字典值是从0开始按顺序的连续整数。
-    #     list(shared_strings.values()) == list(range(len(shared_strings)))
-    shared_strings: dict[str, int] = {}
 
     with zipfile.ZipFile(file, "w") as zf:
         zf.writestr(
@@ -239,6 +267,14 @@ def write(
             ),
         )
 
+        # 即使是只用到一次的字符串也会存在共享字符串池中，未见有文件用单元格类型t="inlineStr"。
+        shared_strings = pool("")
+        number_formats = pool("0", 176)  # 小索引都被Excel自带的数值格式占掉了
+        number_formats["General"] = 0
+        fonts = pool("")
+        fills = pool('<patternFill patternType="none"/>')
+        borders = pool("<left/><right/><top/><bottom/><diagonal/>")
+        cell_xfs = pool((0, 0, 0, 0))
         for shID, sheet in enumerate(data.values(), 1):
             with zf.open(f"xl/worksheets/sheet{shID}.xml", "w") as f:
                 f.write(
@@ -260,8 +296,9 @@ def write(
                 for i, row in sheet:
                     f.write(f'<row r="{i + 1}">'.encode())
                     for j, cell in row:
+                        #,, ,= styler()
                         f.write(
-                            f'<c r="{column_number_to_letter(j)}{i + 1}" {_value_to_cell(cell, shared_strings)}</c>'.encode()
+                            f'<c r="{column_number_to_letter(j)}{i + 1}" s="{0}" {_value_to_cell(cell, shared_strings)}</c>'.encode()
                         )
                     f.write(b"</row>")
                 f.write(b"</sheetData></worksheet>")
@@ -311,41 +348,28 @@ def write(
             "xl/styles.xml",
             """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-    <colors>
-        <indexedColors>
-            <rgbColor rgb="00000000"/>
-            <rgbColor rgb="00FFFFFF"/>
-            <rgbColor rgb="00FF0000"/>
-            <rgbColor rgb="0000FF00"/>
-            <rgbColor rgb="000000FF"/>
-            <rgbColor rgb="00FFFF00"/>
-            <rgbColor rgb="00FF00FF"/>
-            <rgbColor rgb="0000FFFF"/>
-            <rgbColor rgb="00000000"/>
-            <rgbColor rgb="00FFFFFF"/>
-            <rgbColor rgb="00FF0000"/>
-            <rgbColor rgb="0000FF00"/>
-            <rgbColor rgb="000000FF"/>
-            <rgbColor rgb="00FFFF00"/>
-            <rgbColor rgb="00FF00FF"/>
-            <rgbColor rgb="0000FFFF"/>
-            <rgbColor rgb="00800000"/>
-            <rgbColor rgb="00008000"/>
-            <rgbColor rgb="00000080"/>
-            <rgbColor rgb="00808000"/>
-            <rgbColor rgb="00800080"/>
-            <rgbColor rgb="00008080"/>
-            <rgbColor rgb="00C0C0C0"/>
-            <rgbColor rgb="00808080"/>
-            %s
-        </indexedColors>
-    </colors>
+    <numFmts>%s</numFmts>
+    <fonts>%s</fonts>
+    <fills>%s</fills>
+    <borders>%s</borders>
+    <cellStyleXfs>
+        <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
+    </cellStyleXfs>
+    <cellXfs>%s</cellXfs>
 </styleSheet>"""
             % (
                 "".join(
-                    '<rgbColor rgb="00%s"/>' % color.removeprefix("#").upper()
-                    for color in conf.THEME + conf.ACCENTS + ("000000",) * 30
-                )
+                    f'<numFmt numFmtId="{i}" formatCode="{html.escape(number_format)}"/>'
+                    for number_format, i in number_formats.items()
+                    if i                    
+                ),
+                "".join(f"<font>{font}</font>" for font in fonts),
+                "".join(f"<fill>{fill}</fill>" for fill in fills),
+                "".join(f"<border>{border}</border>" for border in borders),
+                "".join(
+                    f'<xf xfId="0" numFmtId="{number_format}" fontId="{font}" fillId="{fill}" borderId="{border}"/>'
+                    for number_format, font, fill, border in cell_xfs
+                ),
             ),
         )
 
@@ -431,7 +455,7 @@ def write(
         )
 
 
-def _value_to_cell(x: CellValue, shared_strings: dict[str, int]) -> str:
+def _value_to_cell(x: CellValue, shared_strings: Mapping[str, int]) -> str:
     """转换Python数据到SpreadsheetML <c>节点的属性和内容。
 
     返回值应该嵌入在"<c "和"</c>"之间。
@@ -442,10 +466,11 @@ def _value_to_cell(x: CellValue, shared_strings: dict[str, int]) -> str:
         # #NULL!是异常，类似计算min([])时发生的ValueError，不应采用。
         return 't="e"><v>#N/A</v>'
     elif isinstance(x, str):
-        # 字符串要加入到共享字符串池。
-        if x not in shared_strings:
-            shared_strings[x] = len(shared_strings)
+        # 字符串会自动加入到共享字符串池。
         return f't="s"><v>{shared_strings[x]}</v>'
+    elif isinstance(x, bytes):
+        "0;0;0;\"bytes\"('@')"
+        return f't="s"><v>{shared_strings[repr(x)[2:-1]]}</v>'
     elif isinstance(x, bool):
         # 布尔值，用0和1表示。
         return f't="b"><v>{x:d}</v>'
@@ -507,21 +532,12 @@ def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellValue:
 write(
     "output.xlsx",
     {"工作表114514": {11: {2: "妙的", 3: "不妙的", 4: 114.514, 5: math.nan}.items()}.items()},
+ lambda sheet_name,i,j,x:("0;0;0;@",'<b/><color theme="3"/>','<patternFill patternType="solid"><fgColor theme="0"/></patternFill>','')
 )
 db = read("output.xlsx")
 from pprint import pprint
 from timeit import timeit
 
-print(
-    timeit(
-        lambda: write(
-            "output.xlsx",
-            {"哼哼": ((i, ((j, i + j) for j in range(11))) for i in range(1919))},
-        ),
-        number=100,
-    )
-    / 100
-)
 pprint(db["工作表114514"])
 db = read("工作簿1.xlsx")
 pprint(db["Sheet2"])
