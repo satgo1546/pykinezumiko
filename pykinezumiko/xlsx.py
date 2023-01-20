@@ -1,5 +1,6 @@
 import datetime
 import html
+from itertools import groupby
 import math
 import os
 import re
@@ -211,6 +212,8 @@ def read(
         worksheet = workbook["Sheet1"]
         cell = worksheet[8, 4]  # 第8行第4列，下标从0开始
         print("Sheet1!E9的值是", cell)
+
+    由Excel文件格式保证工作表字典键已排序。
     """
     with zipfile.ZipFile(file, "r") as z:
         # 先定义一个方便函数。
@@ -266,7 +269,7 @@ def read(
 
 def write(
     file: Union[str, os.PathLike[str], IO[bytes]],
-    data: Mapping[str, Iterable[tuple[int, Iterable[tuple[int, CellPrimitive]]]]],
+    data: Mapping[str, Iterable[tuple[tuple[int, int], CellPrimitive]]],
     styler: Callable[
         [CellStyle, str, int, int, CellPrimitive], object
     ] = lambda *_: None,
@@ -283,30 +286,41 @@ def write(
 
     因此，根据使用需求不同，数据可以以各种结构存放，交给本函数的用户决定。
 
-    如果数据是二维列表或二维NumPy数组，那么像下面这样调用。
+    如果数据是二维列表，那么像下面这样调用。
 
         sheet = [["A1", "B1"], ["A2", "B2"]]
         xlsx.write("output.xlsx", {
-            "Sheet1": ((i, enumerate(row)) for i, row in enumerate(sheet)),
+            "Sheet1": (
+                ((i, j), cell)
+                for i, row in enumerate(sheet)
+                for j, cell in enumerate(row)
+            ),
         })
 
-    如果数据是二维字典，那么像下面这样调用。键不必按顺序排列。
+    如果数据是二维字典，那么像下面这样调用。
+    Excel要求单元格必须按顺序写入，否则认为文件损坏。
+    如果能确保字典键按顺序排列，则可删去sorted。
 
         sheet = {0: {0: "A1", 1: "B1"}, 1: {0: "A2", 1: "B2"}}
         xlsx.write("output.xlsx", {
-            "Sheet1": ((i, row.items()) for i, row in sheet.items()),
+            "Sheet1": (
+                ((i, j), cell)
+                for i, row in sorted(sheet.items())
+                for j, cell in sorted(row.items())
+            ),
         })
 
-    如果数据是复合键字典，那么像下面这样调用。因为必须整行写入，所以使用了sorted和groupby。
+    如果数据是复合键字典，那么像下面这样调用。
+    同样，如果能确保字典键按顺序排列，则可删去sorted。
 
         sheet = {(0, 0): "A1", (0, 1): "B1", (1, 0): "A2", (1, 1): "B2"}
         from itertools import groupby
-        xlsx.write("output.xlsx", {
-            "Sheet1": (
-                (i, ((j, sheet[i, j]) for i, j in row))
-                for i, row in groupby(sorted(sheet), lambda x: x[0])
-            ),
-        })
+        xlsx.write("output.xlsx", {"Sheet1": sorted(sheet.items())})
+
+    如果数据是NumPy数组，那么像下面这样调用。
+
+        sheet = np.array([["A1", "B1"], ["A2", "B2"]])
+        xlsx.write("output.xlsx", {"Sheet1": np.ndenumerate(sheet)})
 
     通过styler来程序化地指定单元格的样式。传入的函数如下述。
 
@@ -414,11 +428,18 @@ def write(
     </cols>
     <sheetData>"""
                 )
-                for i, row in sheet:
+                old_i = -1
+                for i, row in groupby(sheet, lambda x: x[0][0]):
+                    if i <= old_i:
+                        raise ValueError("单元格行号应已排序")
                     f.write(
                         f'<row r="{i + 1}" s="{style(sheet_name, i, -1, None)}" customFormat="1">'.encode()
                     )
-                    for j, cell in row:
+                    old_j = -1
+                    for (_, j), cell in row:
+                        if j <= old_j:
+                            raise ValueError("一行中的单元格应按列号排序")
+                        old_j = j
                         f.write(
                             f'<c r="{column_number_to_letter(j)}{i + 1}" s="{style(sheet_name, i, j, cell)}" {_value_to_cell(cell, shared_strings)}</c>'.encode()
                         )
@@ -590,10 +611,18 @@ def f(style: CellStyle, sheet_name, i, j, x):
 write(
     "output.xlsx",
     {
-        "工作表114514": {
-            11: {2: "妙的", 3: "不妙的", 4: 114.514, 5: math.nan}.items(),
-            12: {1: "不妙的", 4: math.inf, 6: "妙的", 7: 114.514}.items(),
-        }.items()
+        "工作表114514": sorted(
+            {
+                (12, 6): "妙的",
+                (12, 1): "不妙的",
+                (12, 7): 114.514,
+                (12, 4): math.inf,
+                (11, 2): "妙的",
+                (11, 3): "不妙的",
+                (11, 4): 114.514,
+                (11, 5): math.nan,
+            }.items()
+        ),
     },
     f,
 )
