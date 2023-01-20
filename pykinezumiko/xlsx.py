@@ -1,6 +1,5 @@
 import datetime
 import html
-from itertools import groupby
 import math
 import os
 import re
@@ -9,7 +8,8 @@ import zipfile
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Mapping
 from functools import reduce
-from typing import IO, Any, Callable, Literal, Union
+from itertools import groupby
+from typing import IO, Any, Callable, Literal, Optional, Union
 
 CellPrimitive = Union[None, bool, int, float, str]
 """单元格值的类型。
@@ -149,6 +149,45 @@ class CellStyle:
         )
 
 
+NUMBER_FORMATS = {
+    0: "General",
+    1: "0",
+    2: "0.00",
+    3: "#,##0",
+    4: "#,##0.00",
+    5: '"$"#,##0_);("$"#,##0)',
+    6: '"$"#,##0_);[Red]("$"#,##0)',
+    7: '"$"#,##0.00_);("$"#,##0.00)',
+    8: '"$"#,##0.00_);[Red]("$"#,##0.00)',
+    9: "0%",
+    10: "0.00%",
+    11: "0.00E+00",
+    12: "# ?/?",
+    13: "# ??/??",
+    14: "mm-dd-yy",
+    15: "d-mmm-yy",
+    16: "d-mmm",
+    17: "mmm-yy",
+    18: "h:mm AM/PM",
+    19: "h:mm:ss AM/PM",
+    20: "h:mm",
+    21: "h:mm:ss",
+    22: "m/d/yy h:mm",
+    37: "#,##0_);(#,##0)",
+    38: "#,##0_);[Red](#,##0)",
+    39: "#,##0.00_);(#,##0.00)",
+    40: "#,##0.00_);[Red](#,##0.00)",
+    41: r'_(* #,##0_);_(* \(#,##0\);_(* "-"_);_(@_)',
+    42: r'_("$"* #,##0_);_("$"* \(#,##0\);_("$"* "-"_);_(@_)',
+    43: r'_(* #,##0.00_);_(* \(#,##0.00\);_(* "-"??_);_(@_)',
+    44: r'_("$"* #,##0.00_)_("$"* \(#,##0.00\)_("$"* "-"??_)_(@_)',
+    45: "mm:ss",
+    46: "[h]:mm:ss",
+    47: "mmss.0",
+    48: "##0.0E+0",
+    49: "@",
+}
+
 EPOCH = datetime.date(1899, 12, 30)
 """Excel元年。
 
@@ -230,7 +269,7 @@ def pool(index_base: int = 0) -> defaultdict[Any, int]:
 
 def read(
     file: Union[str, os.PathLike[str], IO[bytes]]
-) -> dict[str, defaultdict[tuple[int, int], CellPrimitive]]:
+) -> dict[str, defaultdict[tuple[int, int], CellValue]]:
     """读取指定的工作簿。
 
     返回对象可以以下列形式使用：
@@ -278,15 +317,29 @@ def read(
         else:
             shared_strings = []
 
+        # 取出工作簿的样式表。
+        if "xl/styles.xml" in z.NameToInfo:
+            number_formats = NUMBER_FORMATS | {
+                int(el.get("numFmtId", "-1")): el.get("formatCode", "")
+                for el in xq("xl/styles.xml", "./{*}numFmts/{*}numFmt")
+            }
+            style_number_formats = [
+                number_formats.get(int(el.get("numFmtId", "")), "General")
+                for el in xq("xl/styles.xml", "./{*}cellXfs/{*}xf")
+                if el.get("numFmtId")
+            ] or ["General"]
+        else:
+            style_number_formats = ["General"]
+
         # 读取工作表数据。
-        workbook: dict[str, defaultdict[tuple[int, int], CellPrimitive]] = {}
+        workbook: dict[str, defaultdict[tuple[int, int], CellValue]] = {}
         for sheet_name, filename in sheets.items():
             workbook[sheet_name] = defaultdict(
                 str,
                 (
                     (
                         parse_cell_reference(el.get("r", "")),
-                        _cell_to_value(el, shared_strings),
+                        _primitive_to_value(el, shared_strings, style_number_formats),
                     )
                     for el in xq(filename, "./{*}sheetData/{*}row/{*}c")
                 ),
@@ -296,10 +349,8 @@ def read(
 
 def write(
     file: Union[str, os.PathLike[str], IO[bytes]],
-    data: Mapping[str, Iterable[tuple[tuple[int, int], CellPrimitive]]],
-    styler: Callable[
-        [CellStyle, str, int, int, CellPrimitive], object
-    ] = lambda *_: None,
+    data: Mapping[str, Iterable[tuple[tuple[int, int], CellValue]]],
+    styler: Callable[[CellStyle, str, int, int, CellValue], object] = lambda *_: None,
 ) -> None:
     """向指定的文件中写出Excel 2007工作簿。
 
@@ -417,14 +468,17 @@ def write(
 
         cell_style = CellStyle()
         number_formats: defaultdict[str, int] = pool(176)  # 小索引都被Excel自带的数值格式占掉了
-        number_formats["General"] = 0
+        number_formats |= {v: k for k, v in NUMBER_FORMATS.items()}
         fonts: defaultdict[str, int] = pool()
         fills: defaultdict[str, int] = pool(2)  # 似乎0号和1号填充被占用了，必须填充垃圾样式
         borders: defaultdict[str, int] = pool(1)  # 这个大概也有问题，保险起见填个垃圾再说
         cell_xfs: defaultdict[tuple[int, int, int, int], int] = pool()
 
-        def style(sheet_name: str, i: int, j: int, value: CellPrimitive) -> int:
+        def style(sheet_name: str, i: int, j: int, value: CellValue) -> int:
             cell_style.reset()
+            cell_style.number_format = (
+                _value_to_cell(value, shared_strings)[0] or cell_style.number_format
+            )
             styler(cell_style, sheet_name, i, j, value)
             return cell_xfs[
                 number_formats[cell_style.number_format],
@@ -463,7 +517,7 @@ def write(
                         columns[
                             j
                         ] = f'<col min="{j + 1}" max="{j + 1}" style="{style(sheet_name, -1, j, None)}" width="{cell_style.width}" customWidth="1"/>'
-                    xml_body += f'<c r="{column_number_to_letter(j)}{i + 1}" s="{style(sheet_name, i, j, cell)}" {_value_to_cell(cell, shared_strings)}</c>'
+                    xml_body += f'<c r="{column_number_to_letter(j)}{i + 1}" s="{style(sheet_name, i, j, cell)}" {_value_to_cell(cell, shared_strings)[1]}</c>'
                 xml_body += "</row>"
             old_j = -1
             for j in sorted(columns):
@@ -538,7 +592,7 @@ def write(
                 "".join(
                     f'<numFmt numFmtId="{i}" formatCode="{html.escape(number_format)}"/>'
                     for number_format, i in number_formats.items()
-                    if i
+                    if i >= 128
                 ),
                 "".join(fonts),
                 "".join(fills),
@@ -556,41 +610,42 @@ def write(
         )
 
 
-def _value_to_cell(x: CellPrimitive, shared_strings: Mapping[str, int]) -> str:
-    """转换Python数据到SpreadsheetML <c>节点的属性和内容。
+def _value_to_cell(
+    x: CellValue, shared_strings: Mapping[str, int]
+) -> tuple[Optional[str], str]:
+    """转换Python数据到单元格数值格式和SpreadsheetML <c>节点的属性和内容。
 
-    返回值应该嵌入在"<c "和"</c>"之间。
+    对单元格格式没有特殊要求时返回None。返回值的XML片段应该嵌入在"<c "和"</c>"之间。
     """
     if x is None:
         # 空白单元格表示空字符串，所以必须另寻空值的表示。
         # #N/A表示空值是贴切的。只有数据科学家才用NaN表示缺损数据。
         # #NULL!是异常，类似计算min([])时发生的ValueError，不应采用。
-        return 't="e"><v>#N/A</v>'
+        return None, 't="e"><v>#N/A</v>'
     elif isinstance(x, str):
         # 字符串会自动加入到共享字符串池。
-        return f't="s"><v>{shared_strings[x]}</v>'
+        return None, f't="s"><v>{shared_strings[x]}</v>'
     elif isinstance(x, bytes):
-        "0;0;0;\"bytes\"('@')"
-        return f't="s"><v>{shared_strings[repr(x)[2:-1]]}</v>'
+        return "\"bytes\"('@')", f't="s"><v>{shared_strings[x.hex(" ").upper()]}</v>'
     elif isinstance(x, bool):
         # 布尔值，用0和1表示。
-        return f't="b"><v>{x:d}</v>'
+        return None, f't="b"><v>{x:d}</v>'
     elif isinstance(x, float) and math.isnan(x):
         # 借用#NUM!表示NaN。
-        return f't="e"><v>#NUM!</v>'
+        return None, f't="e"><v>#NUM!</v>'
     elif isinstance(x, float) and math.isinf(x):
         # 借用#DIV/0!表示无穷大。
         # 实际上Excel中=0/0会被计算为#DIV/0!（应为NaN），而=114^514会被计算为#NUM!（应为+∞）。
         # 不要在意这些细节。
-        return f't="e"><v>#DIV/0!</v>'
+        return None, f't="e"><v>#DIV/0!</v>'
     elif False:
         # 写入公式的话，要用<f>节点。<v>也能出现，用来缓存上回计算结果。
         # 能坚持不重算的程度还和工作簿的calcId有关。
         # 不过并没有加入公式支持的打算。
-        return f"><f>{html.escape(...)}</f>"
+        return None, f"><f>{html.escape(...)}</f>"
     else:
         # 常规数值，类型省略。
-        return f"><v>{x}</v>"
+        return None, f"><v>{x}</v>"
     # 顺便介绍一下剩下的Excel异常。
     # #NAME?对应NameError。
     # #REF!用C语言的话来说就是use after free。Python也有意思很接近的ReferenceError。
@@ -602,7 +657,7 @@ def _value_to_cell(x: CellPrimitive, shared_strings: Mapping[str, int]) -> str:
     # 这些值还能作为字面量在公式中导致报错，例如=IF(A1>0,A1-1,#NUM!)。Excel，很神奇吧？
 
 
-def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellPrimitive:
+def _cell_to_primitive(el: ET.Element, shared_strings: list[str]) -> CellPrimitive:
     """转换<c>元素到Python数据。"""
     t = el.get("t")
     value = el.find("./{*}v")
@@ -624,10 +679,28 @@ def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellPrimitive:
             return None
         else:
             return math.nan
-    elif re.fullmatch(r"-?[0-9]+", value):
-        return int(value)
     else:
         return float(value)
+
+
+def _primitive_to_value(
+    el: ET.Element, shared_strings: list[str], style_number_formats: list[str]
+) -> CellValue:
+    """从单元格数值格式解析原始Python数据到复杂数据。"""
+    value = _cell_to_primitive(el, shared_strings)
+    number_format = style_number_formats[int(el.get("s", "0"))]
+    if '"(' in number_format:
+        f = number_format.removeprefix('"').partition('"(')[0]
+        if f == "bytes" and isinstance(value, str):
+            return bytes.fromhex(value)
+    if (
+        isinstance(value, float)
+        and math.isfinite(value)
+        and "." not in number_format
+        and ("0" in number_format or "#" in number_format)
+    ):
+        return int(value)
+    return value
 
 
 def f(style: CellStyle, sheet_name: str, i, j, x):
@@ -658,6 +731,7 @@ write(
                 (11, 3): "不妙的",
                 (11, 4): 114.514,
                 (11, 5): math.nan,
+                (13, 7): b"BYTES\0--in excel!",
             }.items()
         ),
         "工作表1919810": (),
