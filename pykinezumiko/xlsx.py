@@ -417,23 +417,28 @@ def write(
         # 将默认样式作为初始项目填入cell_xfs。
         style("", -1, -1, None)
 
-        for shID, (sheet_name, sheet) in enumerate(data.items(), 1):
-            style(sheet_name, -1, -1, None)
+        for sheet_id, (sheet_name, sheet) in enumerate(data.items(), 1):
+            default_style = style(sheet_name, -1, -1, None)
+            default_width = cell_style.width
             xml_head = f"""<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-<sheetFormatPr customHeight="1" defaultRowHeight="{cell_style.height}" defaultColWidth="{cell_style.width}"/>
+<sheetFormatPr customHeight="1" defaultRowHeight="{cell_style.height}" defaultColWidth="{default_width}"/>
 <cols>"""
             xml_body = "</cols><sheetData>"
-            columns = {}
+            columns = {16384: ""}
             old_i = -1
             for i, row in groupby(sheet, lambda x: x[0][0]):
                 if i <= old_i:
                     raise ValueError("单元格行号应已排序")
+                if i >= 1048576:
+                    raise ValueError("超出范围的单元格")
                 xml_body += f'<row r="{i + 1}" s="{style(sheet_name, i, -1, None)}" customFormat="1" ht="{cell_style.height}" customHeight="1">'
                 old_j = -1
                 for (_, j), cell in row:
                     if j <= old_j:
                         raise ValueError("一行中的单元格应按列号排序")
+                    if j >= 16384:
+                        raise ValueError("超出范围的单元格")
                     old_j = j
                     if j not in columns:
                         columns[
@@ -441,12 +446,16 @@ def write(
                         ] = f'<col min="{j + 1}" max="{j + 1}" style="{style(sheet_name, -1, j, None)}" width="{cell_style.width}" customWidth="1"/>'
                     xml_body += f'<c r="{column_number_to_letter(j)}{i + 1}" s="{style(sheet_name, i, j, cell)}" {_value_to_cell(cell, shared_strings)}</c>'
                 xml_body += "</row>"
+            old_j = -1
+            for j in sorted(columns):
+                if j != old_j + 1:
+                    xml_head += (
+                        f'<col min="{old_j + 2}" max="{j}" style="{default_style}" width="{default_width}" customWidth="1"/>'
+                    )
+                xml_head += columns[j]
             zf.writestr(
-                f"xl/worksheets/sheet{shID}.xml",
-                xml_head
-                + "".join(columns[j] for j in sorted(columns))
-                + xml_body
-                + "</sheetData></worksheet>",
+                f"xl/worksheets/sheet{sheet_id}.xml",
+                xml_head + xml_body + "</sheetData></worksheet>",
             )
 
         # rId1..rId(N) = 工作表。
@@ -604,7 +613,11 @@ def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellPrimitive:
         return float(value)
 
 
-def f(style: CellStyle, sheet_name, i, j, x):
+def f(style: CellStyle, sheet_name: str, i, j, x):
+    if sheet_name.endswith("0"):
+        style.border_diagonal_up = True
+        style.border_diagonal_style = "thick"
+        style.border_diagonal_color = "#987654"
     style.fill = "#abcdef" if type(x) is str else "#114514"
     style.bold = i == 12
     if i == 12:
@@ -630,13 +643,12 @@ write(
                 (11, 5): math.nan,
             }.items()
         ),
+        "工作表1919810": (),
     },
     f,
 )
-db = read("output.xlsx")
 from pprint import pprint
 from timeit import timeit
 
-pprint(db["工作表114514"])
-db = read("工作簿1.xlsx")
-pprint(db["Sheet2"])
+pprint(read("output.xlsx"))
+pprint(read("工作簿1.xlsx"))
