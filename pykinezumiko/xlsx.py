@@ -308,18 +308,18 @@ def write(
             ),
         })
 
-    通过styler来程序化地指定单元格的样式。只能指定指定了内容的单元格的样式。传入的函数如下述。
+    通过styler来程序化地指定单元格的样式。传入的函数如下述。
 
-        def styler(sheet_name: str, row: int, column: int, value: CellValue):
-            number_format = "General"
-            font = ""
-            fill = ""
-            border = ""
-            # 示例：设置B列为粗体、深色2
+        def styler(style: CellStyle, sheet_name: str, row: int, column: int, value: CellValue):
+            # 示例：设置B列为粗体、深蓝色字、浅蓝色背景。
             if column == 1:
-                font = '<b/><color theme="3"/>'
-                fill = '<patternFill patternType="solid"><fgColor theme="0"/></patternFill>'
-            return number_format, font, fill, border
+                style.bold = True
+                style.color = "#123456"
+                style.fill = "#abcdef"
+
+    因为并不知道styler会在哪些单元格设置格式，实际只能指定指定了内容的单元格的样式。
+    当然，可以通过指定单元格内容为空字符串来提示需要在对应单元格上执行styler。
+    sheet_name还会传入空字符串，row、column参数还会传入−1。这时需要返回工作簿、行、列等的默认样式。
     """
     # 接下来将会多次出现的r:id="rId×××"并不是只有这一种固定格式。
     # OOXML是通过像Java那样狂写XML配置来表明文件之间关联的。
@@ -415,9 +415,10 @@ def write(
     <sheetData>"""
                 )
                 for i, row in sheet:
-                    f.write(f'<row r="{i + 1}">'.encode())
+                    f.write(
+                        f'<row r="{i + 1}" s="{style(sheet_name, i, -1, None)}" customFormat="1">'.encode()
+                    )
                     for j, cell in row:
-                        style(sheet_name, i, j, cell)
                         f.write(
                             f'<c r="{column_number_to_letter(j)}{i + 1}" s="{style(sheet_name, i, j, cell)}" {_value_to_cell(cell, shared_strings)}</c>'.encode()
                         )
@@ -581,13 +582,19 @@ def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellPrimitive:
 
 def f(style: CellStyle, sheet_name, i, j, x):
     style.fill = "#abcdef" if type(x) is str else "#114514"
+    style.bold = i == 12
     style.border_bottom_color = "#e9e981"
     style.border_bottom_style = "thick"
 
 
 write(
     "output.xlsx",
-    {"工作表114514": {11: {2: "妙的", 3: "不妙的", 4: 114.514, 5: math.nan}.items()}.items()},
+    {
+        "工作表114514": {
+            11: {2: "妙的", 3: "不妙的", 4: 114.514, 5: math.nan}.items(),
+            12: {1: "不妙的", 4: math.inf, 6: "妙的", 7: 114.514}.items(),
+        }.items()
+    },
     f,
 )
 db = read("output.xlsx")
