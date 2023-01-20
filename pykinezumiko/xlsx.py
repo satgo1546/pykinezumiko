@@ -64,6 +64,14 @@ class CellStyle:
         self.border_diagonal_down: bool = False
         self.border_diagonal_up: bool = False
 
+        self.width: float = 8
+        self.height: float = 16
+        """列宽和行高。
+        
+        并不是单元格的格式，而是整行和整列的格式，在单个单元格上设置宽度和高度无效。
+        但是因为styler函数中第−1列表示整行，第−1行表示整列，将尺寸信息写在这里非常方便。
+        """
+
     # 我去，匿名装饰器！
     # 该装饰器创建一个只可写入的属性。
     @lambda f: property(fset=f)
@@ -314,7 +322,6 @@ def write(
     同样，如果能确保字典键按顺序排列，则可删去sorted。
 
         sheet = {(0, 0): "A1", (0, 1): "B1", (1, 0): "A2", (1, 1): "B2"}
-        from itertools import groupby
         xlsx.write("output.xlsx", {"Sheet1": sorted(sheet.items())})
 
     如果数据是NumPy数组，那么像下面这样调用。
@@ -411,40 +418,36 @@ def write(
         style("", -1, -1, None)
 
         for shID, (sheet_name, sheet) in enumerate(data.items(), 1):
-            with zf.open(f"xl/worksheets/sheet{shID}.xml", "w") as f:
-                f.write(
-                    b"""<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+            style(sheet_name, -1, -1, None)
+            xml_head = f"""<?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-    <sheetFormatPr customHeight="1" defaultRowHeight="20" defaultColWidth="6"/>
-    <cols>
-        <col customWidth="1" min="1" max="1" width="4.25"/>
-        <col customWidth="1" min="2" max="2" width="11.13"/>
-        <col customWidth="1" min="3" max="3" width="27.75"/>
-        <col customWidth="1" min="4" max="4" width="12.13"/>
-        <col customWidth="1" min="5" max="6" width="12.5"/>
-        <col customWidth="1" min="7" max="7" width="8.63"/>
-        <col customWidth="1" min="9" max="68" width="3.0"/>
-        <col customWidth="1" min="69" max="69" width="3.38"/>
-    </cols>
-    <sheetData>"""
-                )
-                old_i = -1
-                for i, row in groupby(sheet, lambda x: x[0][0]):
-                    if i <= old_i:
-                        raise ValueError("单元格行号应已排序")
-                    f.write(
-                        f'<row r="{i + 1}" s="{style(sheet_name, i, -1, None)}" customFormat="1">'.encode()
-                    )
-                    old_j = -1
-                    for (_, j), cell in row:
-                        if j <= old_j:
-                            raise ValueError("一行中的单元格应按列号排序")
-                        old_j = j
-                        f.write(
-                            f'<c r="{column_number_to_letter(j)}{i + 1}" s="{style(sheet_name, i, j, cell)}" {_value_to_cell(cell, shared_strings)}</c>'.encode()
-                        )
-                    f.write(b"</row>")
-                f.write(b"</sheetData></worksheet>")
+<sheetFormatPr customHeight="1" defaultRowHeight="{cell_style.height}" defaultColWidth="{cell_style.width}"/>
+<cols>"""
+            xml_body = "</cols><sheetData>"
+            columns = {}
+            old_i = -1
+            for i, row in groupby(sheet, lambda x: x[0][0]):
+                if i <= old_i:
+                    raise ValueError("单元格行号应已排序")
+                xml_body += f'<row r="{i + 1}" s="{style(sheet_name, i, -1, None)}" customFormat="1" ht="{cell_style.height}" customHeight="1">'
+                old_j = -1
+                for (_, j), cell in row:
+                    if j <= old_j:
+                        raise ValueError("一行中的单元格应按列号排序")
+                    old_j = j
+                    if j not in columns:
+                        columns[
+                            j
+                        ] = f'<col min="{j + 1}" max="{j + 1}" style="{style(sheet_name, -1, j, None)}" width="{cell_style.width}" customWidth="1"/>'
+                    xml_body += f'<c r="{column_number_to_letter(j)}{i + 1}" s="{style(sheet_name, i, j, cell)}" {_value_to_cell(cell, shared_strings)}</c>'
+                xml_body += "</row>"
+            zf.writestr(
+                f"xl/worksheets/sheet{shID}.xml",
+                xml_head
+                + "".join(columns[j] for j in sorted(columns))
+                + xml_body
+                + "</sheetData></worksheet>",
+            )
 
         # rId1..rId(N) = 工作表。
         # rId(N+1) = 共享字符串池。
@@ -604,6 +607,10 @@ def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellPrimitive:
 def f(style: CellStyle, sheet_name, i, j, x):
     style.fill = "#abcdef" if type(x) is str else "#114514"
     style.bold = i == 12
+    if i == 12:
+        style.height = 24
+    if j == 6:
+        style.width = 114
     style.border_bottom_color = "#e9e981"
     style.border_bottom_style = "thick"
 
