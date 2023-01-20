@@ -1,3 +1,4 @@
+import datetime
 import html
 import math
 import os
@@ -7,12 +8,121 @@ import zipfile
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Mapping
 from functools import reduce
-from typing import IO, Any, Callable, Union
+from typing import IO, Any, Callable, Literal, Union
 
-CellValue = Union[None, bool, int, float, str]
-"""支持的单元格值类型。
+CellPrimitive = Union[None, bool, int, float, str]
+"""单元格值的类型。
 
 无法区分整数和浮点数，NaN和无穷也无法准确存储。
+"""
+
+CellValue = Union[CellPrimitive, bytes]
+"""通过单元格数值格式，额外支持的单元格值类型。"""
+
+CellBorderStyle = Literal[
+    "none",
+    "thin",
+    "medium",
+    "dashed",
+    "dotted",
+    "thick",
+    "double",
+    "hair",
+    "mediumDashed",
+    "dashDot",
+    "mediumDashDot",
+    "dashDotDot",
+    "mediumDashDotDot",
+    "slantDashDot",
+]
+
+
+class CellStyle:
+    """单元格格式。"""
+
+    def __init__(self) -> None:
+        self.reset()
+
+    def reset(self) -> None:
+        self.number_format: str = "General"
+
+        self.font_name: str = "Courier New"
+        self.font_size: float = 10.0
+        self.bold: bool = False
+        self.italic: bool = False
+        self.underline: bool = False
+        self.strikethrough: bool = False
+        self.subscript: bool = False
+        self.superscript: bool = False
+        self.color: str = "#000000"
+
+        self.fill: str = "#ffffff"
+
+        self.border_style = "none"
+        self.border_color = "#000000"
+        self.border_diagonal_down: bool = False
+        self.border_diagonal_up: bool = False
+
+    # 我去，匿名装饰器！
+    # 该装饰器创建一个只可写入的属性。
+    @lambda f: property(fset=f)
+    def border_style(self, style: CellBorderStyle):
+        self.border_top_style: CellBorderStyle = style
+        self.border_right_style: CellBorderStyle = style
+        self.border_bottom_style: CellBorderStyle = style
+        self.border_left_style: CellBorderStyle = style
+        self.border_diagonal_style: CellBorderStyle = style
+
+    @lambda f: property(fset=f)
+    def border_color(self, color: str):
+        self.border_top_color: str = color
+        self.border_right_color: str = color
+        self.border_bottom_color: str = color
+        self.border_left_color: str = color
+        self.border_diagonal_color: str = color
+
+    def font_spec(self) -> str:
+        return (
+            f'<font><name val="{html.escape(self.font_name)}"/><sz val="{self.font_size}"/>'
+            + ("<b/>" if self.bold else "")
+            + ("<i/>" if self.italic else "")
+            + ("<u/>" if self.underline else "")
+            + ("<strike/>" if self.strikethrough else "")
+            + (
+                '<vertAlign val="subscript"/>'
+                if self.subscript
+                else '<vertAlign val="superscript"/>'
+                if self.superscript
+                else ""
+            )
+            + f'<color rgb="FF{self.color[-6:]}"/></font>'
+        )
+
+    def fill_spec(self) -> str:
+        return f'<fill><patternFill patternType="solid"><fgColor rgb="FF{self.fill[-6:]}"/></patternFill></fill>'
+
+    def border_spec(self) -> str:
+        return (
+            "<border"
+            + (' diagonalUp="1"' if self.border_diagonal_up else "")
+            + (' diagonalDown="1"' if self.border_diagonal_down else "")
+            + f""">
+<left style="{self.border_left_style}">
+<color rgb="FF{self.border_left_color[-6:]}"/></left>
+<right style="{self.border_right_style}">
+<color rgb="FF{self.border_right_color[-6:]}"/></right>
+<top style="{self.border_top_style}">
+<color rgb="FF{self.border_top_color[-6:]}"/></top>
+<bottom style="{self.border_bottom_style}">
+<color rgb="FF{self.border_bottom_color[-6:]}"/></bottom>
+<diagonal style="{self.border_diagonal_style}">
+<color rgb="FF{self.border_diagonal_color[-6:]}"/></diagonal>
+</border>"""
+        )
+
+
+EPOCH = datetime.date(1899, 12, 30)
+"""Excel元年。
 
 Excel没有专门的日期/时间类型，而是用数字代替，就像Unix时间戳一样。
 单元格内存储的数值表示从1900年1月0日起、包含1900年2月29日在内的天数（？？？）。
@@ -92,7 +202,7 @@ def pool(index_base: int = 0) -> defaultdict[Any, int]:
 
 def read(
     file: Union[str, os.PathLike[str], IO[bytes]]
-) -> dict[str, defaultdict[tuple[int, int], CellValue]]:
+) -> dict[str, defaultdict[tuple[int, int], CellPrimitive]]:
     """读取指定的工作簿。
 
     返回对象可以以下列形式使用：
@@ -139,7 +249,7 @@ def read(
             shared_strings = []
 
         # 读取工作表数据。
-        workbook: dict[str, defaultdict[tuple[int, int], CellValue]] = {}
+        workbook: dict[str, defaultdict[tuple[int, int], CellPrimitive]] = {}
         for sheet_name, filename in sheets.items():
             workbook[sheet_name] = defaultdict(
                 str,
@@ -156,10 +266,10 @@ def read(
 
 def write(
     file: Union[str, os.PathLike[str], IO[bytes]],
-    data: Mapping[str, Iterable[tuple[int, Iterable[tuple[int, CellValue]]]]],
+    data: Mapping[str, Iterable[tuple[int, Iterable[tuple[int, CellPrimitive]]]]],
     styler: Callable[
-        [str, int, int, CellValue], tuple[str, str, str, str]
-    ] = lambda *_: ("General", "", "", ""),
+        [CellStyle, str, int, int, CellPrimitive], object
+    ] = lambda *_: None,
 ) -> None:
     """向指定的文件中写出Excel 2007工作簿。
 
@@ -264,6 +374,7 @@ def write(
 
         # 即使是只用到一次的字符串也会存在共享字符串池中，未见有文件用单元格类型t="inlineStr"。
         shared_strings: defaultdict[str, int] = pool()
+        style = CellStyle()
         number_formats: defaultdict[str, int] = pool(176)  # 小索引都被Excel自带的数值格式占掉了
         number_formats["General"] = 0
         fonts: defaultdict[str, int] = pool()
@@ -291,14 +402,13 @@ def write(
                 for i, row in sheet:
                     f.write(f'<row r="{i + 1}">'.encode())
                     for j, cell in row:
-                        number_format, font, fill, border = styler(
-                            sheet_name, i, j, cell
-                        )
+                        style.reset()
+                        styler(style, sheet_name, i, j, cell)
                         s = cell_xfs[
-                            number_formats[number_format],
-                            fonts[font],
-                            fills[fill],
-                            borders[border],
+                            number_formats[style.number_format],
+                            fonts[style.font_spec()],
+                            fills[style.fill_spec()],
+                            borders[style.border_spec()],
                         ]
                         f.write(
                             f'<c r="{column_number_to_letter(j)}{i + 1}" s="{s}" {_value_to_cell(cell, shared_strings)}</c>'.encode()
@@ -370,9 +480,9 @@ def write(
                     for number_format, i in number_formats.items()
                     if i
                 ),
-                "".join(f"<font>{font}</font>" for font in fonts),
-                "".join(f"<fill>{fill}</fill>" for fill in fills),
-                "".join(f"<border>{border}</border>" for border in borders),
+                "".join(fonts),
+                "".join(fills),
+                "".join(borders),
                 "".join(
                     f'<xf xfId="0" numFmtId="{number_format}" fontId="{font}" fillId="{fill}" borderId="{border}"/>'
                     for number_format, font, fill, border in cell_xfs
@@ -381,7 +491,7 @@ def write(
         )
 
 
-def _value_to_cell(x: CellValue, shared_strings: Mapping[str, int]) -> str:
+def _value_to_cell(x: CellPrimitive, shared_strings: Mapping[str, int]) -> str:
     """转换Python数据到SpreadsheetML <c>节点的属性和内容。
 
     返回值应该嵌入在"<c "和"</c>"之间。
@@ -427,7 +537,7 @@ def _value_to_cell(x: CellValue, shared_strings: Mapping[str, int]) -> str:
     # 这些值还能作为字面量在公式中导致报错，例如=IF(A1>0,A1-1,#NUM!)。Excel，很神奇吧？
 
 
-def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellValue:
+def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellPrimitive:
     """转换<c>元素到Python数据。"""
     t = el.get("t")
     value = el.find("./{*}v")
@@ -455,15 +565,16 @@ def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellValue:
         return float(value)
 
 
+def f(style: CellStyle, sheet_name, i, j, x):
+    style.fill = "#114514"
+    style.border_bottom_color = "#e9e981"
+    style.border_bottom_style = "thick"
+
+
 write(
     "output.xlsx",
     {"工作表114514": {11: {2: "妙的", 3: "不妙的", 4: 114.514, 5: math.nan}.items()}.items()},
-    lambda sheet_name, i, j, x: (
-        "0;0;0;@",
-        '<b/><color theme="3"/>',
-        '<patternFill patternType="solid"><fgColor theme="4"/></patternFill>',
-        "",
-    ),
+    f,
 )
 db = read("output.xlsx")
 from pprint import pprint
