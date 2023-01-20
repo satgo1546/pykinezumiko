@@ -374,13 +374,28 @@ def write(
 
         # 即使是只用到一次的字符串也会存在共享字符串池中，未见有文件用单元格类型t="inlineStr"。
         shared_strings: defaultdict[str, int] = pool()
-        style = CellStyle()
+
+        cell_style = CellStyle()
         number_formats: defaultdict[str, int] = pool(176)  # 小索引都被Excel自带的数值格式占掉了
         number_formats["General"] = 0
         fonts: defaultdict[str, int] = pool()
         fills: defaultdict[str, int] = pool(2)  # 似乎0号和1号填充被占用了，必须填充垃圾样式
-        borders: defaultdict[str, int] = pool(1)  # 不知道这个有没有问题，保险起见填个垃圾再说
+        borders: defaultdict[str, int] = pool(1)  # 这个大概也有问题，保险起见填个垃圾再说
         cell_xfs: defaultdict[tuple[int, int, int, int], int] = pool()
+
+        def style(sheet_name: str, i: int, j: int, value: CellPrimitive) -> int:
+            cell_style.reset()
+            styler(cell_style, sheet_name, i, j, value)
+            return cell_xfs[
+                number_formats[cell_style.number_format],
+                fonts[cell_style.font_spec()],
+                fills[cell_style.fill_spec()],
+                borders[cell_style.border_spec()],
+            ]
+
+        # 将默认样式作为初始项目填入cell_xfs。
+        style("", -1, -1, None)
+
         for shID, (sheet_name, sheet) in enumerate(data.items(), 1):
             with zf.open(f"xl/worksheets/sheet{shID}.xml", "w") as f:
                 f.write(
@@ -402,16 +417,9 @@ def write(
                 for i, row in sheet:
                     f.write(f'<row r="{i + 1}">'.encode())
                     for j, cell in row:
-                        style.reset()
-                        styler(style, sheet_name, i, j, cell)
-                        s = cell_xfs[
-                            number_formats[style.number_format],
-                            fonts[style.font_spec()],
-                            fills[style.fill_spec()],
-                            borders[style.border_spec()],
-                        ]
+                        style(sheet_name, i, j, cell)
                         f.write(
-                            f'<c r="{column_number_to_letter(j)}{i + 1}" s="{s}" {_value_to_cell(cell, shared_strings)}</c>'.encode()
+                            f'<c r="{column_number_to_letter(j)}{i + 1}" s="{style(sheet_name, i, j, cell)}" {_value_to_cell(cell, shared_strings)}</c>'.encode()
                         )
                     f.write(b"</row>")
                 f.write(b"</sheetData></worksheet>")
@@ -469,10 +477,11 @@ def write(
         <border/>
         %s
     </borders>
-    <cellStyleXfs>
-        <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
-    </cellStyleXfs>
+    <cellStyleXfs>%s</cellStyleXfs>
     <cellXfs>%s</cellXfs>
+    <cellStyles>
+        <cellStyle name="a" xfId="0" builtinId="0" customBuiltin="1"/>
+    </cellStyles>
 </styleSheet>"""
             % (
                 "".join(
@@ -483,9 +492,14 @@ def write(
                 "".join(fonts),
                 "".join(fills),
                 "".join(borders),
+                # cellStyleXfs中的第0项是所有工作表单元格的默认样式。
                 "".join(
-                    f'<xf xfId="0" numFmtId="{number_format}" fontId="{font}" fillId="{fill}" borderId="{border}"/>'
+                    f'<xf numFmtId="{number_format}" fontId="{font}" fillId="{fill}" borderId="{border}"/>'
                     for number_format, font, fill, border in cell_xfs
+                ),
+                "".join(
+                    f'<xf xfId="{i}" numFmtId="{number_format}" fontId="{font}" fillId="{fill}" borderId="{border}"/>'
+                    for i, (number_format, font, fill, border) in enumerate(cell_xfs)
                 ),
             ),
         )
@@ -566,7 +580,7 @@ def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellPrimitive:
 
 
 def f(style: CellStyle, sheet_name, i, j, x):
-    style.fill = "#114514"
+    style.fill = "#abcdef" if type(x) is str else "#114514"
     style.border_bottom_color = "#e9e981"
     style.border_bottom_style = "thick"
 
