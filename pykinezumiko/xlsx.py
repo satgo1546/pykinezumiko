@@ -272,9 +272,10 @@ def write(
         number_formats["General"] = 0
         fonts = pool("")
         fills = pool('<patternFill patternType="none"/>')
+        fills['<patternFill patternType="gray125"/>']  # 似乎1号填充也被占用了
         borders = pool("<left/><right/><top/><bottom/><diagonal/>")
-        cell_xfs = pool((0, 0, 0, 0))
-        for shID, sheet in enumerate(data.values(), 1):
+        cell_xfs: defaultdict[tuple[int, int, int, int], int] = pool((0, 0, 0, 0))
+        for shID, (sheet_name, sheet) in enumerate(data.items(), 1):
             with zf.open(f"xl/worksheets/sheet{shID}.xml", "w") as f:
                 f.write(
                     b"""<?xml version="1.0" encoding="utf-8" standalone="yes"?>
@@ -295,9 +296,17 @@ def write(
                 for i, row in sheet:
                     f.write(f'<row r="{i + 1}">'.encode())
                     for j, cell in row:
-                        #,, ,= styler()
+                        number_format, font, fill, border = styler(
+                            sheet_name, i, j, cell
+                        )
+                        s = cell_xfs[
+                            number_formats[number_format],
+                            fonts[font],
+                            fills[fill],
+                            borders[border],
+                        ]
                         f.write(
-                            f'<c r="{column_number_to_letter(j)}{i + 1}" s="{0}" {_value_to_cell(cell, shared_strings)}</c>'.encode()
+                            f'<c r="{column_number_to_letter(j)}{i + 1}" s="{s}" {_value_to_cell(cell, shared_strings)}</c>'.encode()
                         )
                     f.write(b"</row>")
                 f.write(b"</sheetData></worksheet>")
@@ -357,7 +366,7 @@ def write(
                 "".join(
                     f'<numFmt numFmtId="{i}" formatCode="{html.escape(number_format)}"/>'
                     for number_format, i in number_formats.items()
-                    if i                    
+                    if i
                 ),
                 "".join(f"<font>{font}</font>" for font in fonts),
                 "".join(f"<fill>{fill}</fill>" for fill in fills),
@@ -447,7 +456,12 @@ def _cell_to_value(el: ET.Element, shared_strings: list[str]) -> CellValue:
 write(
     "output.xlsx",
     {"工作表114514": {11: {2: "妙的", 3: "不妙的", 4: 114.514, 5: math.nan}.items()}.items()},
- lambda sheet_name,i,j,x:("0;0;0;@",'<b/><color theme="3"/>','<patternFill patternType="solid"><fgColor theme="0"/></patternFill>','')
+    lambda sheet_name, i, j, x: (
+        "0;0;0;@",
+        '<b/><color theme="3"/>',
+        '<patternFill patternType="solid"><fgColor theme="4"/></patternFill>',
+        "",
+    ),
 )
 db = read("output.xlsx")
 from pprint import pprint
