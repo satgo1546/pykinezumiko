@@ -7,11 +7,7 @@ import zipfile
 from collections import defaultdict
 from collections.abc import Iterable, Iterator, Mapping
 from functools import reduce
-from typing import IO, Any, Callable, Optional, TypeVar, Union
-
-from . import conf
-
-T = TypeVar("T")
+from typing import IO, Any, Callable, Union
 
 CellValue = Union[None, bool, int, float, str]
 """支持的单元格值类型。
@@ -78,19 +74,19 @@ def parse_cell_reference(address: str) -> tuple[int, int]:
         raise ValueError("错误的单元格引用格式：应类似A1或R1C1")
 
 
-def pool(first_value: T, first_index: int = 0) -> defaultdict[T, int]:
+def pool(index_base: int = 0) -> defaultdict[Any, int]:
     """创建一个值池，即从值到加入顺序（从指定索引开始）的映射。
 
     值是新的时，产生新的索引，否则返回原有索引。用于共享字符串池、样式表索引的生成。
 
-        x = pool("foo")  # 池中必须初始包含一个值，帮助类型推断
-        assert x["foo"] == 0
-        assert x["bar"] == 1
-        assert x["baz"] == 2
-        assert x["bar"] == 1
-        assert x["foobar"] == 3
+        x = pool(100)
+        assert x["foo"] == 100
+        assert x["bar"] == 101
+        assert x["baz"] == 102
+        assert x["bar"] == 101
+        assert x["foobar"] == 103
     """
-    x = defaultdict(lambda: len(x) + first_index, ((first_value, first_index),))
+    x = defaultdict(lambda: len(x) + index_base)
     return x
 
 
@@ -267,14 +263,13 @@ def write(
         )
 
         # 即使是只用到一次的字符串也会存在共享字符串池中，未见有文件用单元格类型t="inlineStr"。
-        shared_strings = pool("")
-        number_formats = pool("0", 176)  # 小索引都被Excel自带的数值格式占掉了
+        shared_strings: defaultdict[str, int] = pool()
+        number_formats: defaultdict[str, int] = pool(176)  # 小索引都被Excel自带的数值格式占掉了
         number_formats["General"] = 0
-        fonts = pool("")
-        fills = pool('<patternFill patternType="none"/>')
-        fills['<patternFill patternType="gray125"/>']  # 似乎1号填充也被占用了
-        borders = pool("<left/><right/><top/><bottom/><diagonal/>")
-        cell_xfs: defaultdict[tuple[int, int, int, int], int] = pool((0, 0, 0, 0))
+        fonts: defaultdict[str, int] = pool()
+        fills: defaultdict[str, int] = pool(2)  # 似乎0号和1号填充被占用了，必须填充垃圾样式
+        borders: defaultdict[str, int] = pool(1)  # 不知道这个有没有问题，保险起见填个垃圾再说
+        cell_xfs: defaultdict[tuple[int, int, int, int], int] = pool()
         for shID, (sheet_name, sheet) in enumerate(data.items(), 1):
             with zf.open(f"xl/worksheets/sheet{shID}.xml", "w") as f:
                 f.write(
@@ -355,8 +350,15 @@ def write(
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
     <numFmts>%s</numFmts>
     <fonts>%s</fonts>
-    <fills>%s</fills>
-    <borders>%s</borders>
+    <fills>
+        <fill><patternFill patternType="none"/></fill>
+        <fill><patternFill patternType="gray125"/></fill>
+        %s
+    </fills>
+    <borders>
+        <border/>
+        %s
+    </borders>
     <cellStyleXfs>
         <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
     </cellStyleXfs>
