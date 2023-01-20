@@ -231,7 +231,6 @@ def write(
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
     <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
     <Default Extension="xml" ContentType="application/xml"/>
-    <Override PartName="/xl/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml" />
     <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
     %s
     <Override PartName="/xl/sharedStrings.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml"/>
@@ -306,7 +305,6 @@ def write(
         # rId1..rId(N) = 工作表。
         # rId(N+1) = 共享字符串池。
         # rId(N+2) = 样式表。
-        # rId(N+3) = 文档主题。
         # sheets first for rId# then theme > styles > sharedStrings
         zf.writestr(
             "xl/_rels/workbook.xml.rels",
@@ -315,7 +313,6 @@ def write(
     %s
     <Relationship Target="sharedStrings.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Id="rId%d"/>
     <Relationship Target="styles.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Id="rId%d"/>
-    <Relationship Target="theme/theme1.xml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Id="rId%d"/>
 </Relationships>"""
             % (
                 "".join(
@@ -324,7 +321,6 @@ def write(
                 ),
                 len(data) + 1,
                 len(data) + 2,
-                len(data) + 3,
             ),
         )
 
@@ -370,87 +366,6 @@ def write(
                     f'<xf xfId="0" numFmtId="{number_format}" fontId="{font}" fillId="{fill}" borderId="{border}"/>'
                     for number_format, font, fill, border in cell_xfs
                 ),
-            ),
-        )
-
-        zf.writestr(
-            "xl/theme/theme1.xml",
-            """<?xml version="1.0" encoding="utf-8" standalone="yes"?>
-<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="​​a">
-    <a:themeElements>
-        <a:clrScheme name="a">
-            <a:dk1><a:srgbClr val="%s"/></a:dk1>
-            <a:lt1><a:srgbClr val="%s"/></a:lt1>
-            <a:dk2><a:srgbClr val="%s"/></a:dk2>
-            <a:lt2><a:srgbClr val="%s"/></a:lt2>
-            <a:accent1><a:srgbClr val="%s"/></a:accent1>
-            <a:accent2><a:srgbClr val="%s"/></a:accent2>
-            <a:accent3><a:srgbClr val="%s"/></a:accent3>
-            <a:accent4><a:srgbClr val="%s"/></a:accent4>
-            <a:accent5><a:srgbClr val="%s"/></a:accent5>
-            <a:accent6><a:srgbClr val="%s"/></a:accent6>
-            <a:hlink><a:srgbClr val="0000FF"/></a:hlink>
-            <a:folHlink><a:srgbClr val="800080"/></a:folHlink>
-        </a:clrScheme>
-        <a:fontScheme name="a">
-            <a:majorFont>
-                <a:latin typeface="LM Sans 10"/>
-                <a:ea typeface="FandolHei"/>
-                <a:cs typeface=""/>
-            </a:majorFont>
-            <a:minorFont>
-                <a:latin typeface="LM Sans 10"/>
-                <a:ea typeface="FandolHei"/>
-                <a:cs typeface=""/>
-            </a:minorFont>
-        </a:fontScheme>
-        <a:fmtScheme name="a">
-            <a:fillStyleLst>
-                <a:solidFill>
-                    <a:schemeClr val="phClr"/>
-                </a:solidFill>
-                <a:solidFill>
-                    <a:schemeClr val="phClr">
-                        <a:shade val="50000"/>
-                    </a:schemeClr>
-                </a:solidFill>
-                <a:solidFill>
-                    <a:schemeClr val="phClr">
-                        <a:tint val="50000"/>
-                    </a:schemeClr>
-                </a:solidFill>
-            </a:fillStyleLst>
-            <a:lnStyleLst>
-                <a:ln/>
-                <a:ln/>
-                <a:ln/>
-            </a:lnStyleLst>
-            <a:effectStyleLst>
-                <a:effectStyle><a:effectLst/></a:effectStyle>
-                <a:effectStyle><a:effectLst/></a:effectStyle>
-                <a:effectStyle><a:effectLst/></a:effectStyle>
-            </a:effectStyleLst>
-            <a:bgFillStyleLst>
-                <a:solidFill>
-                    <a:schemeClr val="phClr"/>
-                </a:solidFill>
-                <a:solidFill>
-                    <a:schemeClr val="phClr">
-                        <a:shade val="50000"/>
-                    </a:schemeClr>
-                </a:solidFill>
-                <a:solidFill>
-                    <a:schemeClr val="phClr">
-                        <a:tint val="50000"/>
-                    </a:schemeClr>
-                </a:solidFill>
-            </a:bgFillStyleLst>
-        </a:fmtScheme>
-    </a:themeElements>
-</a:theme>"""
-            % tuple(
-                color.removeprefix("#").upper()
-                for color in conf.THEME[::3] + conf.THEME[1:3] + conf.ACCENTS
             ),
         )
 
