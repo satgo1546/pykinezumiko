@@ -20,6 +20,25 @@ CellPrimitive = Union[None, bool, int, float, str]
 CellValue = Union[CellPrimitive, bytes]
 """通过单元格数值格式，额外支持的单元格值类型。"""
 
+Color = Union[tuple[int, int, int], tuple[int, int, int, int], str]
+"""RGB元组，RGBA元组，或#RRGGBB、#RRGGBBAA格式的字符串。"""
+
+
+def color_to_hex(color: Color) -> str:
+    """转换Color类型数据到十六进制ARGB字符串。"""
+    if isinstance(color, tuple):
+        if len(color) == 3:
+            return "ff%02x%02x%02x" % color
+        else:
+            return "%02x%02x%02x%02x" % (color[3:] + color[:3])
+    else:
+        color = color.removeprefix("#")
+        if len(color) == 6:
+            return "ff" + color
+        else:
+            return color[6:] + color[:6]
+
+
 CellBorderStyle = Literal[
     "none",
     "thin",
@@ -55,12 +74,12 @@ class CellStyle:
         self.strikethrough: bool = False
         self.subscript: bool = False
         self.superscript: bool = False
-        self.color: str = "#000000"
+        self.color: Color = (0, 0, 0)
 
-        self.fill: str = "#ffffff"
+        self.fill: Color = (255, 255, 255)
 
         self.border_style = "none"
-        self.border_color = "#000000"
+        self.border_color = (0, 0, 0)
         self.border_diagonal_down: bool = False
         self.border_diagonal_up: bool = False
 
@@ -83,12 +102,12 @@ class CellStyle:
         self.border_diagonal_style: CellBorderStyle = style
 
     @lambda f: property(fset=f)
-    def border_color(self, color: str):
-        self.border_top_color: str = color
-        self.border_right_color: str = color
-        self.border_bottom_color: str = color
-        self.border_left_color: str = color
-        self.border_diagonal_color: str = color
+    def border_color(self, color: Color):
+        self.border_top_color: Color = color
+        self.border_right_color: Color = color
+        self.border_bottom_color: Color = color
+        self.border_left_color: Color = color
+        self.border_diagonal_color: Color = color
 
     def font_spec(self) -> str:
         return (
@@ -104,11 +123,11 @@ class CellStyle:
                 if self.superscript
                 else ""
             )
-            + f'<color rgb="FF{self.color[-6:]}"/></font>'
+            + f'<color rgb="{color_to_hex(self.color)}"/></font>'
         )
 
     def fill_spec(self) -> str:
-        return f'<fill><patternFill patternType="solid"><fgColor rgb="FF{self.fill[-6:]}"/></patternFill></fill>'
+        return f'<fill><patternFill patternType="solid"><fgColor rgb="{color_to_hex(self.fill)}"/></patternFill></fill>'
 
     def border_spec(self) -> str:
         return (
@@ -117,15 +136,15 @@ class CellStyle:
             + (' diagonalDown="1"' if self.border_diagonal_down else "")
             + f""">
 <left style="{self.border_left_style}">
-<color rgb="FF{self.border_left_color[-6:]}"/></left>
+<color rgb="{color_to_hex(self.border_left_color)}"/></left>
 <right style="{self.border_right_style}">
-<color rgb="FF{self.border_right_color[-6:]}"/></right>
+<color rgb="{color_to_hex(self.border_right_color)}"/></right>
 <top style="{self.border_top_style}">
-<color rgb="FF{self.border_top_color[-6:]}"/></top>
+<color rgb="{color_to_hex(self.border_top_color)}"/></top>
 <bottom style="{self.border_bottom_style}">
-<color rgb="FF{self.border_bottom_color[-6:]}"/></bottom>
+<color rgb="{color_to_hex(self.border_bottom_color)}"/></bottom>
 <diagonal style="{self.border_diagonal_style}">
-<color rgb="FF{self.border_diagonal_color[-6:]}"/></diagonal>
+<color rgb="{color_to_hex(self.border_diagonal_color)}"/></diagonal>
 </border>"""
         )
 
@@ -335,8 +354,8 @@ def write(
             # 示例：设置B列为粗体、深蓝色字、浅蓝色背景。
             if column == 1:
                 style.bold = True
-                style.color = "#123456"
-                style.fill = "#abcdef"
+                style.color = (0x12, 0x34, 0x56)
+                style.fill = (0xab, 0xcd, 0xef)
 
     因为并不知道styler会在哪些单元格设置格式，实际只能指定指定了内容的单元格的样式。
     当然，可以通过指定单元格内容为空字符串来提示需要在对应单元格上执行styler。
@@ -449,9 +468,7 @@ def write(
             old_j = -1
             for j in sorted(columns):
                 if j != old_j + 1:
-                    xml_head += (
-                        f'<col min="{old_j + 2}" max="{j}" style="{default_style}" width="{default_width}" customWidth="1"/>'
-                    )
+                    xml_head += f'<col min="{old_j + 2}" max="{j}" style="{default_style}" width="{default_width}" customWidth="1"/>'
                 xml_head += columns[j]
             zf.writestr(
                 f"xl/worksheets/sheet{sheet_id}.xml",
