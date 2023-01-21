@@ -1,3 +1,22 @@
+"""Microsoft Excel 2007 XLSX文件读写库。
+
+基于pydpiper开发的pylightxl改写。
+pylightxl是轻量级、零依赖的Excel电子表格数据、公式、批注读写库，支持Python 2.7.18+。
+该库的代码仅一个文件，有完整的类型标注，可惜不知为何没能进到awesome-python列表中。
+https://github.com/PydPiper/pylightxl
+https://pylightxl.readthedocs.io/
+
+不支持读写公式、批注、主题。
+不压缩写出的工作簿。在今日硬件上，不压缩的性能往往更好。
+这还有助于全体打包时使用更高压缩率的算法，而非受限于ZIP通行的DEFLATE。
+
+【动机】
+openpyxl即使在只读与只写模式下也慢得很。
+pylightxl在创建xl/sharedStrings.xml时采用了线性查找而非散列表。
+不知性能问题是否与库默认的ZIP压缩选项有关。
+因为需要一种快速写入的方法，自己编写了库。
+"""
+
 import datetime
 import html
 import math
@@ -354,13 +373,12 @@ def write(
 ) -> None:
     """向指定的文件中写出Excel 2007工作簿。
 
-    数据由从工作表名到内容的映射给出，内容是嵌套的可迭代对象，只要能被下列代码输出即可。
+    数据由从工作表名到内容的映射给出，内容类似numpy.ndenumerate产生的迭代器，只要能被下列代码输出即可。
 
         for sheet_name in data:
             print("【工作表", sheet_name, "】")
-            for i, row in data[sheet_name]:
-                for j, cell in row:
-                    print("第", i, "行第", j, "列的数据是", cell)
+            for (i, j), cell in data[sheet_name]:
+                print("第", i, "行第", j, "列的数据是", cell)
 
     因此，根据使用需求不同，数据可以以各种结构存放，交给本函数的用户决定。
 
@@ -718,28 +736,29 @@ def f(style: CellStyle, sheet_name: str, i, j, x):
     style.border_bottom_style = "thick"
 
 
-write(
-    "output.xlsx",
-    {
-        "工作表114514": sorted(
-            {
-                (12, 6): "妙的",
-                (12, 1): "不妙的",
-                (12, 7): 114.514,
-                (12, 4): math.inf,
-                (11, 2): "妙的",
-                (11, 3): "不妙的",
-                (11, 4): 114.514,
-                (11, 5): math.nan,
-                (13, 7): b"BYTES\0--in excel!",
-            }.items()
-        ),
-        "工作表1919810": (),
-    },
-    f,
-)
-from pprint import pprint
-from timeit import timeit
+if __name__ == "__main__":
+    write(
+        "output.xlsx",
+        {
+            "工作表114514": sorted(
+                {
+                    (12, 6): "妙的",
+                    (12, 1): "不妙的",
+                    (12, 7): 114.514,
+                    (12, 4): math.inf,
+                    (11, 2): "妙的",
+                    (11, 3): "不妙的",
+                    (11, 4): 114.514,
+                    (11, 5): math.nan,
+                    (13, 7): b"BYTES\0--in excel!",
+                }.items()
+            ),
+            "工作表1919810": (),
+        },
+        f,
+    )
+    from pprint import pprint
+    from timeit import timeit
 
-pprint(read("output.xlsx"))
-pprint(read("工作簿1.xlsx"))
+    pprint(read("output.xlsx"))
+    pprint(read("工作簿1.xlsx"))

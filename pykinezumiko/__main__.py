@@ -2,15 +2,35 @@ import os
 import time
 import importlib
 from flask import Flask, request
-from . import ChatbotBehavior
+from . import ChatbotBehavior, docstore
 
 # 从plugins文件夹下加载所有Python模块。
-for module in sorted(
-    "pykinezumiko.plugins." + filename.removesuffix(".py")
-    for filename in os.listdir("pykinezumiko/plugins")
-    if filename.endswith(".py")
-):
-    importlib.import_module(module, ".")
+modules = [
+    importlib.import_module("pykinezumiko.plugins." + name, ".")
+    for name in sorted(
+        filename.removesuffix(".py")
+        for filename in os.listdir("pykinezumiko/plugins")
+        if filename.endswith(".py") and filename.count(".") == 1
+    )
+]
+
+# 为定义了记录类的模块分配文档数据库。
+os.makedirs("excel", exist_ok=True)
+databases = [
+    docstore.Database(f"excel/{name}.xlsx", tables)
+    for name, tables in (
+        (
+            module.__name__.rpartition(".")[2],
+            tuple(
+                v
+                for v in module.__dict__.values()
+                if isinstance(v, docstore.Table) and v.__module__ == module.__name__
+            ),
+        )
+        for module in modules
+    )
+    if tables
+]
 
 # 虽然只是加载而没有将模块留下，但是其中的类皆已成功定义。
 # 靠深度优先搜索找出所有继承了ChatbotBehavior但没有子类的类，它们是要实例化的插件类。
@@ -65,6 +85,11 @@ def gocqhttp_event():
         context, _ = ChatbotBehavior.context_sender_from_gocqhttp_event(data)
         # 易碎的细节：all和any短路求值。
         any(p.gocqhttp_event(data) for p in plugins)
+        # 在处理完任意事件后自动保存所有已修改的数据库。
+        for database in databases:
+            if database.dirty:
+                print("写入数据库", database)
+                database.save()
     except Exception as e:
         e.__traceback__
         if context:
