@@ -43,8 +43,8 @@ class Table(type[T]):
         del cls._data[key]
         cls.dirty = True
 
-    def __len__(cls) -> int:
-        return len(cls._data)
+    def __len__(self) -> int:
+        return len(self._data)
 
     def items(cls) -> ItemsView[Any, T]:
         return cls._data.items()
