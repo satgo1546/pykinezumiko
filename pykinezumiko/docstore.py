@@ -36,6 +36,8 @@ class Table(type[T]):
         return cls._data[key]
 
     def __setitem__(cls, key, value: T) -> None:
+        if not isinstance(value, cls):
+            raise TypeError(f"记录应是{cls}的实例")
         cls._data[key] = value
         cls.dirty = True
 

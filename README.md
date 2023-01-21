@@ -48,10 +48,11 @@
     - 烧瓶
     - 枕头
     - 请求书
+    - 整理得井井有条的容器
 - G.I.T.（需要恶魔帮助的话）
 
 ```sh
-sudo apt-get install python3-flask python3-pil python3-requests git
+sudo apt-get install python3-flask python3-pil python3-requests python3-sortedcontainers git
 ```
 
 还需要在conf.py中配置少量紧急情况也需要使用的信息。
