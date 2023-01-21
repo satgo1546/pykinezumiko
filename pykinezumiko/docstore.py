@@ -106,6 +106,8 @@ class Database:
                     )
                 )
                 for i in count():
+                    if worksheet_data[i + 1, 0] == "":
+                        break
                     row = table()
                     for j, field in enumerate(fields):
                         setattr(row, field, worksheet_data[i + 1, j + 1])
