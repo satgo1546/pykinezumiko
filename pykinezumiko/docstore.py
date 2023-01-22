@@ -3,56 +3,103 @@
 所谓文档数据库，就是把数据存在Office文档里！
 """
 
+from collections import UserDict
 from itertools import count, takewhile
 import time
-from typing import Any, Generator, TypeVar, get_type_hints
+from typing import Any, Generator, Iterable, Protocol, TypeVar, get_type_hints
 from collections.abc import ItemsView
-from sortedcontainers import SortedDict
+from typing_extensions import dataclass_transform, Self
 
 from . import xlsx
 
 T = TypeVar("T")
+T_contra = TypeVar("T_contra", contravariant=True)
+TableT = TypeVar("TableT", bound="Table")
 
 
-class Table(type[T]):
+class Comparable(Protocol[T_contra]):
+    def __lt__(self, __other: T_contra) -> bool:
+        ...
+
+
+ComparableT = TypeVar("ComparableT", bound=Comparable)
+RecordT = TypeVar("RecordT", bound="Record")
+
+
+@dataclass_transform()
+class Table(type):
     """记录的元类。
 
     TODO：最好画张类结构示意图！
 
     数据直接在内存中以索引到记录对象的**有序**映射存放。
-    pandas的本质是平行数组，不适合单条记录的增删，所以不使用。
+    键保持有序是通过每次插入时全部重排实现的屑。
+
     Table元类因记录类实际保存数据、提供表中记录增删操作而得名。
+
+    【问题】
+    Table继承type，作为Record的元类，这样就能实现在记录类自身上使用标准下标语法操作表中记录。
+    但是，正确标注类型极其困难。
+    类型检查器偏好type而非其他元类，因此像下面这样使Table继承type的泛型也无济于事，T不知何所指。
+
+        class Table(type[T]):
+            def __getitem__(cls, key: str) -> T:
+                ...
+
+    https://discuss.python.org/t/metaclasses-and-typing/6983
+    https://github.com/python/typing/issues/715
+
+    现在只能做到外部使用基本没有问题。
+    如你所见，类的内部一派混乱，强制无视类型错误的指令漫天飞舞。
+
+    【已否决的设计】
+    sortedcontainers提供的SortedDict性能更好。
+    但反正现在每次操作完都会重新写入文件，内存中的操作摆烂也无所谓了。
+    pandas的本质是平行数组，不适合单条记录的增删，所以不使用。
+
+    在Record中添加类变量table: ClassVar[Table[KT, VT]]，其中Table是dict的子类。
+    这样无法确定KT和VT。
+
+    多重继承真的很糟糕。
+    同时继承type和dict的话，会报基类间实例内存布局冲突错。
+    同时继承type和UserDict的话，isinstance将无法正常工作。
     """
 
-    def __init__(
-        cls, name: str, bases: tuple[type, ...], attrs: dict[str, Any]
-    ) -> None:
-        cls._data = SortedDict()
-        """在记录类中存放表数据。"""
-        cls.dirty = False
-        """插入记录、删除记录时自动置位。向记录对象写入属性时，也会写入此标志。"""
+    dirty = False
+    """插入记录、删除记录时自动置位。向记录对象写入属性时，也会写入此标志。"""
 
-    def __getitem__(cls, key) -> T:
-        return cls._data[key]
+    def sort(cls) -> None:
+        cls.table = dict(sorted(cls.table.items()))
 
-    def __setitem__(cls, key, value: T) -> None:
-        if not isinstance(value, cls):
-            raise TypeError(f"记录应是{cls}的实例")
-        cls._data[key] = value
+    def __getitem__(cls: type[T], key: Comparable) -> T:
+        return cls.table[key]  # type: ignore
+
+    def __setitem__(cls: type[T], key: Comparable, value: T) -> None:
+        if key in cls.table or next(reversed(cls.table)) < key:  # type: ignore
+            cls.table[key] = value  # type: ignore
+        else:
+            cls.table[key] = value  # type: ignore
+            cls.sort()  # type: ignore
+        cls.dirty = True  # type: ignore
+
+    def __delitem__(cls, key: Comparable) -> None:
+        del cls.table[key]
         cls.dirty = True
 
-    def __delitem__(cls, key) -> None:
-        del cls._data[key]
-        cls.dirty = True
-
-    def __len__(self) -> int:
-        return len(self._data)
-
-    def items(cls) -> ItemsView[Any, T]:
-        return cls._data.items()
+    def items(cls: type[T]) -> ItemsView[Any, T]:
+        return cls.table.items()  # type: ignore
 
     def clear(cls) -> None:
-        cls._data.clear()
+        cls.table.clear()
+        cls.dirty = True
+
+    def update(cls: type[T], data: Iterable[tuple[Any, T]]) -> None:
+        cls.table.update(data)  # type: ignore
+        cls.sort()  # type: ignore
+        cls.dirty = True  # type: ignore
+
+    def __len__(self) -> int:
+        return len(self.table)
 
 
 class Record(metaclass=Table):
@@ -85,7 +132,7 @@ class Database:
     Office文档虽然的的确确是堆烂格式，但是人人都在用，受到良好的支持。
     """
 
-    def __init__(self, filename: str, tables: tuple[Table, ...]) -> None:
+    def __init__(self, filename: str, tables: tuple[TableT, ...]) -> None:
         self.filename = filename
         self.tables = tables
         self.reload()
@@ -97,7 +144,8 @@ class Database:
             workbook_data = {}
         for table in self.tables:
             worksheet_data = workbook_data.get(table.__name__)
-            table.clear()
+            # 注意Table没有__init__，table属性是在这里初始化的。
+            table.table = {}
             if worksheet_data:
                 fields = list(
                     map(
@@ -111,7 +159,7 @@ class Database:
                     row = table()
                     for j, field in enumerate(fields):
                         setattr(row, field, worksheet_data[i + 1, j + 1])
-                    table[worksheet_data[i + 1, 0]] = row
+                    table.table[worksheet_data[i + 1, 0]] = row
             table.dirty = False
 
     @property
@@ -125,7 +173,7 @@ class Database:
         yield (0, 0), ""
         for j, field in enumerate(fields):
             yield (0, j + 1), field
-        for i, (key, row) in enumerate(table.items()):
+        for i, (key, row) in enumerate(table.table.items()):
             yield (i + 1, 0), key
             for j, field in enumerate(fields):
                 yield (i + 1, j + 1), getattr(row, field)
@@ -135,3 +183,5 @@ class Database:
             self.filename,
             {table.__name__: self.worksheet_data(table) for table in self.tables},
         )
+        for table in self.tables:
+            table.dirty = False
