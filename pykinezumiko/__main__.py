@@ -17,21 +17,19 @@ modules = [
 # 为定义了记录类的模块分配文档数据库。
 os.makedirs("excel", exist_ok=True)
 databases = [
-    docstore.Database(f"excel/{name}.xlsx", record_types)
-    for name, record_types in (
+    docstore.Database(f"excel/{name}.xlsx", tables)
+    for name, tables in (
         (
             module.__name__.rpartition(".")[2],
             tuple(
                 v
                 for v in module.__dict__.values()
-                if isinstance(v, type)
-                and docstore.Record in v.__bases__
-                and v.__module__ == module.__name__
+                if isinstance(v, docstore.Table) and v.__module__ == module.__name__
             ),
         )
         for module in modules
     )
-    if record_types
+    if tables
 ]
 
 # 虽然只是加载而没有将模块留下，但是其中的类皆已成功定义。

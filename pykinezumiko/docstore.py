@@ -3,124 +3,59 @@
 所谓文档数据库，就是把数据存在Office文档里！
 """
 
-import time
 from itertools import count, takewhile
-from typing import (
-    Any,
-    ClassVar,
-    Generator,
-    Generic,
-    Mapping,
-    Protocol,
-    TypeVar,
-    get_type_hints,
-)
-from typing_extensions import Self
+import time
+from typing import Any, Generator, TypeVar, get_type_hints
+from collections.abc import ItemsView
+from sortedcontainers import SortedDict
 
 from . import xlsx
 
 T = TypeVar("T")
-T_contra = TypeVar("T_contra", contravariant=True)
-TableT = TypeVar("TableT", bound="Table")
 
 
-class Comparable(Protocol[T_contra]):
-    def __lt__(self, __other: T_contra) -> bool:
-        ...
-
-
-ComparableT = TypeVar("ComparableT", bound=Comparable)
-RecordT = TypeVar("RecordT", bound="Record")
-
-
-class Table(dict[ComparableT, RecordT]):
-    """实际保存数据、提供记录增删操作、跟踪是否已修改的表。
+class Table(type[T]):
+    """记录的元类。
 
     TODO：最好画张类结构示意图！
 
-    数据直接在内存中以索引到记录对象的映射存放。
-    键保持有序，而且是通过每次插入时全部重排实现的屑。
-
-    sortedcontainers提供的SortedDict性能更好。
-    但反正现在每次操作完都会重新写入文件，内存中的操作摆烂也无所谓了。
+    数据直接在内存中以索引到记录对象的**有序**映射存放。
     pandas的本质是平行数组，不适合单条记录的增删，所以不使用。
-
-    【已否决的设计】
-    Table继承type，作为Record的元类，这样就能实现在记录类自身上使用标准下标语法操作表中记录。
-
-        class Table(type):
-            def __getitem__(cls, key):
-                return self._data[key]
-            ...
-        class Record(metaclass=Table):
-            ...
-        class User(Record):
-            name: str
-        User[1] = User(name="A")
-        User[1].name = "B"
-        del User[1]
-
-    但是，正确标注类型极其困难。
-    因为下标运算符被占用，无法使Table或Record成为泛型。
-    即使强加上键必须是字符串的无理要求，也只能做到这样的程度：
-
-        class Table(type):
-            def __getitem__(cls: type[T], key: str) -> T:
-                ...
-
-    然后，因type[T]不兼容Table而报错。
-
-    类型检查器偏好type而非其他元类，因此像下面这样使Table继承type的泛型也无济于事。
-
-        class Table(type[T]):
-            def __getitem__(cls, key: str) -> T:
-                ...
-
-    T不知何所指。
-    https://discuss.python.org/t/metaclasses-and-typing/6983
-    https://github.com/python/typing/issues/715
+    Table元类因记录类实际保存数据、提供表中记录增删操作而得名。
     """
 
-    def __init__(self) -> None:
-        self.dirty: bool = False
+    def __init__(
+        cls, name: str, bases: tuple[type, ...], attrs: dict[str, Any]
+    ) -> None:
+        cls._data = SortedDict()
+        """在记录类中存放表数据。"""
+        cls.dirty = False
         """插入记录、删除记录时自动置位。向记录对象写入属性时，也会写入此标志。"""
 
-    def sort(self) -> None:
-        for key in sorted(self):
-            tmp = self[key]
-            del self[key]
-            self[key] = tmp
+    def __getitem__(cls, key) -> T:
+        return cls._data[key]
 
-    def __setitem__(self, key: ComparableT, value: RecordT) -> None:
-        if key in self or next(reversed(self)) < key:
-            super().__setitem__(key, value)
-        else:
-            super().__setitem__(key, value)
-            self.sort()
-        self.dirty = True
+    def __setitem__(cls, key, value: T) -> None:
+        if not isinstance(value, cls):
+            raise TypeError(f"记录应是{cls}的实例")
+        cls._data[key] = value
+        cls.dirty = True
 
-    def __delitem__(self, key: ComparableT) -> None:
-        super().__delitem__(key)
-        self.dirty = True
+    def __delitem__(cls, key) -> None:
+        del cls._data[key]
+        cls.dirty = True
 
-    def __ior__(self: TableT, value: Mapping[ComparableT, RecordT]) -> TableT:
-        self.update(value)
-        self.sort()
-        self.dirty = True
-        return self
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def items(cls) -> ItemsView[Any, T]:
+        return cls._data.items()
+
+    def clear(cls) -> None:
+        cls._data.clear()
 
 
-class Record():
-    @classmethod
-    @property
-    def table(cls:type[RecordT])->Table[str,RecordT]:
-        return Table()
-
-    @table.setter
-    def set_table(self):
-        return
-    #table: ClassVar[Table[ComparableT, RecordT]]
-
+class Record(metaclass=Table):
     def __init__(self, **kwargs) -> None:
         # 实际上这些属性赋值都会经过self.__setattr__。
         # 因为在__slots__中有特别判断，所以没有额外副作用。
@@ -135,7 +70,7 @@ class Record():
         # 修改特殊属性不应导致其他特殊属性的变化。
         if name not in ("created_at", "updated_at"):
             self.updated_at = time.time()
-        self.table.dirty = True
+        self.__class__.dirty = True
 
 
 class Database:
@@ -150,9 +85,9 @@ class Database:
     Office文档虽然的的确确是堆烂格式，但是人人都在用，受到良好的支持。
     """
 
-    def __init__(self, filename: str, record_types: tuple[type[Record], ...]) -> None:
+    def __init__(self, filename: str, tables: tuple[Table, ...]) -> None:
         self.filename = filename
-        self.record_types = record_types
+        self.tables = tables
         self.reload()
 
     def reload(self):
@@ -160,9 +95,9 @@ class Database:
             workbook_data = xlsx.read(self.filename)
         except FileNotFoundError:
             workbook_data = {}
-        for record_type in self.record_types:
-            worksheet_data = workbook_data.get(record_type.__name__)
-            record_type.table = Table()
+        for table in self.tables:
+            worksheet_data = workbook_data.get(table.__name__)
+            table.clear()
             if worksheet_data:
                 fields = list(
                     map(
@@ -173,15 +108,15 @@ class Database:
                 for i in count():
                     if worksheet_data[i + 1, 0] == "":
                         break
-                    row = record_type()
+                    row = table()
                     for j, field in enumerate(fields):
                         setattr(row, field, worksheet_data[i + 1, j + 1])
-                    record_type.table[worksheet_data[i + 1, 0]] = row
-            record_type.table.dirty = False
+                    table[worksheet_data[i + 1, 0]] = row
+            table.dirty = False
 
     @property
     def dirty(self) -> bool:
-        return any(record_type.table.dirty for record_type in self.record_types)
+        return any(table.dirty for table in self.tables)
 
     def worksheet_data(
         self, table: Table
@@ -198,8 +133,5 @@ class Database:
     def save(self) -> None:
         xlsx.write(
             self.filename,
-            {
-                record_type.__name__: self.worksheet_data(record_type.table)
-                for record_type in self.record_types
-            },
+            {table.__name__: self.worksheet_data(table) for table in self.tables},
         )
