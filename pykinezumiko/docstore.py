@@ -3,12 +3,12 @@
 所谓文档数据库，就是把数据存在Office文档里！
 """
 
-from collections import UserDict
-from itertools import count, takewhile
 import time
-from typing import Any, Generator, Iterable, Protocol, TypeVar, get_type_hints
 from collections.abc import ItemsView
-from typing_extensions import dataclass_transform, Self
+from itertools import count, takewhile
+from typing import Any, Generator, Iterable, Protocol, TypeVar, get_type_hints
+
+from typing_extensions import dataclass_transform
 
 from . import xlsx
 
@@ -63,6 +63,23 @@ class Table(type):
     多重继承真的很糟糕。
     同时继承type和dict的话，会报基类间实例内存布局冲突错。
     同时继承type和UserDict的话，isinstance将无法正常工作。
+
+    既能使键类型成为泛型，又能正确获得元类产生的类的办法并不是没有。
+
+        class Table(type[VT], UserDict[KT, VT], Generic[KT, VT]):
+            def __getitem__(cls, key: KT) -> VT:
+                ...
+        class transformer(Generic[KT]):
+            def __call__(self, cls: type[VT]) -> Table[KT, VT]:
+                return Table(cls.__name__, cls.__bases__, cls.__dict__.copy())
+        def record_type(key_type: type[KT]) -> transformer[KT]:
+            return transformer()
+    
+        @record_type(key_type=int)
+        class User:
+            name: str
+    
+    但是这样会使@dataclass_transform()完全失效，无论加在哪里都无用。
     """
 
     dirty = False

@@ -2,6 +2,7 @@ import random
 import time
 from collections.abc import Generator
 from typing import Union
+from typing_extensions import override
 
 from .. import ChatbotBehavior
 
@@ -9,6 +10,7 @@ from .. import ChatbotBehavior
 class Demonstration(ChatbotBehavior):
     """演示各种功能的插件。"""
 
+    @override
     def on_message(self, context: int, sender: int, text: str, message_id: int):
         if text == ".debug p":
             return "你好，世界！"
