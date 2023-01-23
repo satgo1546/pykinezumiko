@@ -1,4 +1,4 @@
-import os
+import pathlib
 import random
 import re
 import time
@@ -84,9 +84,10 @@ class Demonstration(ChatbotBehavior):
             id = int(match.group(1))
         else:
             id = int(x)
-        return self.cq("face", id=id) + f" = #{id}"
+        return self.cq("face", id=id) + f" = {id}"
 
     def on_command_debug_img(self):
         return "查看下列图片：" + self.cq(
-            "image", file=os.path.realpath("pykinezumiko/resources/sample.png")
+            "image",
+            file=pathlib.Path("pykinezumiko/resources/sample.png").resolve().as_uri(),
         )
