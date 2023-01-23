@@ -6,12 +6,16 @@
 import time
 from collections.abc import ItemsView
 from itertools import count, takewhile
-from typing import Any, Generator, Iterable, Protocol, TypeVar, get_type_hints
+import typing
+from typing import Any, Generator, Iterable, Protocol, TypeVar
 
 try:
     from typing_extensions import dataclass_transform
 except (ModuleNotFoundError, ImportError):
-    dataclass_transform = lambda: lambda x: x
+    if typing.TYPE_CHECKING:
+        raise
+    else:
+        dataclass_transform = lambda: lambda x: x
 
 from . import xlsx
 
@@ -189,7 +193,7 @@ class Database:
     def worksheet_data(
         self, table: Table
     ) -> Generator[tuple[tuple[int, int], xlsx.CellValue], None, None]:
-        fields = get_type_hints(table)
+        fields = typing.get_type_hints(table)
         yield (0, 0), ""
         for j, field in enumerate(fields):
             yield (0, j + 1), field
