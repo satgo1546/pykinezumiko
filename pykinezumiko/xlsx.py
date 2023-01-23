@@ -36,7 +36,7 @@ CellPrimitive = Union[None, bool, int, float, str]
 无法区分整数和浮点数，NaN和无穷也无法准确存储。
 """
 
-CellValue = Union[CellPrimitive, bytes]
+CellValue = Union[CellPrimitive, datetime.datetime, bytes]
 """通过单元格数值格式，额外支持的单元格值类型。"""
 
 Color = Union[tuple[int, int, int], tuple[int, int, int, int], str]
@@ -192,6 +192,18 @@ NUMBER_FORMATS = {
     20: "h:mm",
     21: "h:mm:ss",
     22: "m/d/yy h:mm",
+    # 27..36和50..58在不同语言中有不同的定义，甚至类型都不一样。
+    # 只使用用户级的格式代码并不能做到自适应。
+    27: '[$-404]e/m/d;yyyy"年"m"月";[$-411]ge.m.d;yyyy"年" mm"月" dd"日"',
+    28: '[$-404]e"年"m"月"d"日";m"月"d"日";[$-411]ggge"年"m"月"d"日";mm-dd',
+    29: '[$-404]e"年"m"月"d"日";m"月"d"日";[$-411]ggge"年"m"月"d"日";mm-dd',
+    30: "m/d/yy;m-d-yy;m/d/yy;mm-dd-yy",
+    31: 'yyyy"年"m"月"d"日";yyyy"年"m"月"d"日";yyyy"年"m"月"d"日";yyyy"년" mm"월" dd"일"',
+    32: 'hh"時"mm"分";h"时"mm"分";h"時"mm"分";h"시" mm"분"',
+    33: 'hh"時"mm"分"ss"秒";h"时"mm"分"ss"秒";h"時"mm"分"ss"秒";h"시" mm"분" ss"초"',
+    34: '上午/下午hh"時"mm"分";上午/下午h"时"mm"分";yyyy"年"m"月";yyyy-mm-dd',
+    35: '上午/下午hh"時"mm"分"ss"秒";上午/下午h"时"mm"分"ss"秒";m"月"d"日";yyyy-mm-dd',
+    36: '[$-404]e/m/d;yyyy"年"m"月";[$-411]ge.m.d;yyyy"年" mm"月" dd"日"',
     37: "#,##0_);(#,##0)",
     38: "#,##0_);[Red](#,##0)",
     39: "#,##0.00_);(#,##0.00)",
@@ -205,9 +217,37 @@ NUMBER_FORMATS = {
     47: "mmss.0",
     48: "##0.0E+0",
     49: "@",
+    50: '[$-404]e/m/d;yyyy"年"m"月";[$-411]ge.m.d;yyyy"年" mm"月" dd"日"',
+    51: '[$-404]e"年"m"月"d"日";m"月"d"日";[$-411]ggge"年"m"月"d"日";mm-dd',
+    52: '上午/下午hh"時"mm"分";yyyy"年"m"月";yyyy"年"m"月";yyyy-mm-dd',
+    53: '上午/下午hh"時"mm"分"ss"秒";m"月"d"日";m"月"d"日";yyyy-mm-dd',
+    54: '[$-404]e"年"m"月"d"日";m"月"d"日";[$-411]ggge"年"m"月"d"日";mm-dd',
+    55: '上午/下午hh"時"mm"分";上午/下午h"时"mm"分";yyyy"年"m"月";yyyy-mm-dd',
+    56: '上午/下午hh"時"mm"分"ss"秒";上午/下午h"时"mm"分"ss"秒";m"月"d"日";yyyy-mm-dd',
+    57: '[$-404]e/m/d;yyyy"年"m"月";[$-411]ge.m.d;yyyy"年" mm"月" dd"日"',
+    58: '[$-404]e"年"m"月"d"日";m"月"d"日";[$-411]ggge"年"m"月"d"日";mm-dd',
+    59: "t0",
+    60: "t0.00",
+    61: "t#,##0",
+    62: "t#,##0.00",
+    67: "t0%",
+    68: "t0.00%",
+    69: "t# ?/?",
+    70: "t# ??/??",
+    71: "ว/ด/ปปปป",
+    72: "ว-ดดด-ปป",
+    73: "ว-ดดด",
+    74: "ดดด-ปป",
+    75: "ช:นน",
+    76: "ช:นน:ทท",
+    77: "ว/ด/ปปปป ช:นน",
+    78: "นน:ทท",
+    79: "[ช]:นน:ทท",
+    80: "นน:ทท.0",
+    81: "d/m/bb",
 }
 
-EPOCH = datetime.date(1899, 12, 30)
+EPOCH = datetime.datetime(1899, 12, 30)
 """Excel元年。
 
 Excel没有专门的日期/时间类型，而是用数字代替，就像Unix时间戳一样。
@@ -656,6 +696,8 @@ def _value_to_cell(
         # 实际上Excel中=0/0会被计算为#DIV/0!（应为NaN），而=114^514会被计算为#NUM!（应为+∞）。
         # 不要在意这些细节。
         return None, f't="e"><v>#DIV/0!</v>'
+    elif isinstance(x, datetime.datetime):
+        return "yyyy-mm-dd hh:mm:ss", f"><v>{(x - EPOCH).total_seconds() / 86400}</v>"
     elif False:
         # 写入公式的话，要用<f>节点。<v>也能出现，用来缓存上回计算结果。
         # 能坚持不重算的程度还和工作簿的calcId有关。
@@ -707,17 +749,34 @@ def _primitive_to_value(
     """从单元格数值格式解析原始Python数据到复杂数据。"""
     value = _cell_to_primitive(el, shared_strings)
     number_format = style_number_formats[int(el.get("s", "0"))]
-    if '"(' in number_format:
+    if number_format.startswith('"') and '"(' in number_format:
         f = number_format.removeprefix('"').partition('"(')[0]
         if f == "bytes" and isinstance(value, str):
             return bytes.fromhex(value)
+    # 删除段开头的方括号表达式，这可能包括货币和语言选项、特殊数字格式、颜色等。
+    # 转义是简单替换：例如，"\\\"表示显示三个反斜杠，"\"\"表示显示一个反斜杠和一个引号。
+    format_codes = re.sub(
+        r'(^|(?<=;))(\[[^\[\]]+\])+|\\.|"[^"]*"|[-+$/():!^&\'~{}<>= ]+',
+        "",
+        number_format.casefold(),
+    )
+    while format_codes.endswith(";general"):
+        format_codes = format_codes.removesuffix(";general")
+    if format_codes == "general":
+        format_codes = ""
     if (
         isinstance(value, float)
         and math.isfinite(value)
-        and "." not in number_format
-        and ("0" in number_format or "#" in number_format)
+        and "." not in format_codes
+        and ("0" in format_codes or "#" in format_codes)
     ):
         return int(value)
+    if (
+        isinstance(value, float)
+        and value >= 0
+        and re.search(r"[ymdhsgebวดปชนท]", format_codes, re.IGNORECASE)
+    ):
+        return EPOCH + datetime.timedelta(value)
     return value
 
 
@@ -751,6 +810,7 @@ if __name__ == "__main__":
                     (11, 4): 114.514,
                     (11, 5): math.nan,
                     (13, 7): b"BYTES\0--in excel!",
+                    (13, 8): datetime.datetime(1919, 8, 10, 11, 45, 14),
                 }.items()
             ),
             "工作表1919810": (),
@@ -761,4 +821,3 @@ if __name__ == "__main__":
     from timeit import timeit
 
     pprint(read("output.xlsx"))
-    pprint(read("工作簿1.xlsx"))
