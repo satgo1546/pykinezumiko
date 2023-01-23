@@ -1,8 +1,19 @@
 import inspect
+import re
 import time
 from collections import OrderedDict
 from collections.abc import Generator
-from typing import Any, Callable, ClassVar, NoReturn, Optional, TypeVar, Union, overload
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Literal,
+    NoReturn,
+    Optional,
+    TypeVar,
+    Union,
+    overload,
+)
 
 import requests
 
@@ -58,13 +69,110 @@ class ChatbotBehavior:
         """
 
     @staticmethod
-    def escape(text: str) -> str:
-        """CQ码转义。"""
+    def unescape(raw_message: str) -> str:
+        r"""转换传入的CQ码到更不容易遇到转义问题的格式。
+        
+        CQ码表示为"[CQ:face,id=178]"的消息会被转换为"\x9dface\0id=178\x9c"。
+        基本上，"["对应"\x9d"，"]"对应"\x9c"，","对应"\0"。
+        通过使用莫名其妙的控制字符，使控制序列与常规文本冲突的可能性降到极低。
+        当输入确实包含"\x9d"和"\x9c"时就完蛋了，到那时再自求多福吧。
+        
+        【已否决的设计】
+        [CQ:控制序列,参数名=参数值,参数名=参数值]
+            由酷Q设计，在QQ机器人界，这种格式十分流行。
+            但是，因为占用了方括号和逗号字符，必须小心处理转义问题。
+            转义序列以"&"开头。
+            保守的转义处理方式导致任何包含逗号和"&"的消息都被大量改动。
+            要处理英语文本、网址、JSON字面量时，就不得不面对解析。
+
+        \e<控制序列 参数值 参数值>
+            这是TenshitMirai的格式。
+            因为使用了U+001B这一控制字符而几乎不会遇到普通文本消息被转义问题。
+            因为"<"和">"被HTML占用，被列为URL中禁止使用的字符，因此参数是网址也没有问题。
+            mirai提供面向对象的消息接口，因此不得不花费很多代码来序列化到纯文本和从纯文本反序列化。
+            mirai也提供类似CQ码的mirai码，也有和CQ码一样的问题。
+            Ruby和GCC支持"\e"作为"\033"的别名，但包括Python在内的许多其他地方并不支持。
+            直接输出到终端的时候可能会把终端状态搞乱。
+
+        \e]114514;控制序列;参数值;参数值\e\\
+            xterm提出了"\e]"开始、"\e\\"或"\a"终止的终端控制序列。
+            参数通常用分号隔开，如果参数值中有分号就完了。
+            使用一个随便的数字，就能保证在输出到终端的时候隐藏控制序列。
+
+        ❰控制序列❚参数值❚参数值❱
+            为什么不试试神奇的Unicode呢？
+        """
+
+        def replacer(match: re.Match[str]) -> str:
+            return "\x9d" + match.group(1).replace(",", "\0") + "\x9c"
+
         return (
-            text.replace("&", "&amp;")
-            .replace("[", "&#91;")
-            .replace("]", "&#93;")
-            .replace(",", "&#44;")
+            re.sub(r"\[CQ:(.*?)\]", replacer, raw_message, re.DOTALL)
+            .replace("&#91;", "[")
+            .replace("&#93;", "]")
+            .replace("&#44;", ",")
+            .replace("&amp;", "&")
+        )
+
+    @staticmethod
+    def escape(text: str) -> str:
+        """转换unescape函数返回的值到CQ码。"""
+
+        return text.translate(
+            {
+                ord("&"): "&amp;",
+                91: "&#91;",
+                93: "&#93;",
+                44: "&#44;",
+                0x9D: "[CQ:",
+                0x9C: "]",
+                0: ",",
+            }
+        )
+
+    @overload
+    @staticmethod
+    def cq(type: Literal["face"], *, id: int) -> str:
+        ...
+
+    @overload
+    @staticmethod
+    def cq(type: Literal["at"], *, id: Union[int, Literal["all"]]) -> str:
+        ...
+
+    @overload
+    @staticmethod
+    def cq(type: Literal["image"], *, file: str) -> str:
+        ...
+
+    @overload
+    @staticmethod
+    def cq(type: Literal["record"], *, file: str) -> str:
+        ...
+
+    @overload
+    @staticmethod
+    def cq(type: Literal["poke"], *, id: int) -> str:
+        ...
+
+    @overload
+    @staticmethod
+    def cq(type: Literal["xml"], *, data: str, resid: int = 0) -> str:
+        ...
+
+    @overload
+    @staticmethod
+    def cq(type: Literal["json"], *, data: str, resid: int = 0) -> str:
+        ...
+
+    @staticmethod
+    def cq(type, **kwargs) -> str:
+        """在消息中类型安全地嵌入富文本元素。
+
+        f"咖啡 = {self.cq('face', id=60)}"
+        """
+        return (
+            "\x9d" + type + "".join(f"\0{k}={v!s}" for k, v in kwargs.items()) + "\x9c"
         )
 
     @staticmethod
@@ -100,7 +208,7 @@ class ChatbotBehavior:
         cls.gocqhttp(
             "send_msg",
             {"user_id" if context >= 0 else "group_id": abs(context)},
-            message=message,
+            message=cls.escape(message),
         )
 
     @staticmethod
@@ -121,7 +229,7 @@ class ChatbotBehavior:
         # https://docs.go-cqhttp.org/event/
         if data["post_type"] == "message":
             # 这个类型的上报只有好友消息和群聊消息两种。
-            message = data["raw_message"]
+            message = self.unescape(data["raw_message"])
             # 强制终止超过一天仍未结束的对话流程。
             while (
                 self.flows and next(iter(self.flows.values()))[0] < time.time() - 86400
@@ -164,7 +272,7 @@ class ChatbotBehavior:
                     )
                 result = True
         elif data["post_type"] == "meta_event":
-            # 这个类型的上报只有心跳，且没有在go-cqhttp的文档中说明。
+            # 这个类型的上报包含心跳等杂项事件。仅OneBot文档中有说明，go-cqhttp的文档中没有说明。
             result = self.on_interval()
         # 其余所有事件都是通知上报。
         elif data["notice_type"] in ("friend_recall", "group_recall"):
