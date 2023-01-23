@@ -1,3 +1,4 @@
+import os
 import random
 import re
 import time
@@ -75,9 +76,17 @@ class Demonstration(ChatbotBehavior):
             text = yield text
         return text
 
+    def on_command_debug_repr(self):
+        return repr((yield "将以 repr 回显接下来的一条消息。"))
+
     def on_command_debug_face(self, x: str):
         if match := re.fullmatch(r"\x9dface\0id=(\d+)\x9c", x):
             id = int(match.group(1))
         else:
             id = int(x)
         return self.cq("face", id=id) + f" = #{id}"
+
+    def on_command_debug_img(self):
+        return "查看下列图片：" + self.cq(
+            "image", file=os.path.realpath("pykinezumiko/resources/sample.png")
+        )
