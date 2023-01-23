@@ -8,7 +8,10 @@ from collections.abc import ItemsView
 from itertools import count, takewhile
 from typing import Any, Generator, Iterable, Protocol, TypeVar, get_type_hints
 
-from typing_extensions import dataclass_transform
+try:
+    from typing_extensions import dataclass_transform
+except (ModuleNotFoundError, ImportError):
+    dataclass_transform = lambda: lambda x: x
 
 from . import xlsx
 
@@ -74,11 +77,11 @@ class Table(type):
                 return Table(cls.__name__, cls.__bases__, cls.__dict__.copy())
         def record_type(key_type: type[KT]) -> transformer[KT]:
             return transformer()
-    
+
         @record_type(key_type=int)
         class User:
             name: str
-    
+
     但是这样会使@dataclass_transform()完全失效，无论加在哪里都无用。
     """
 
