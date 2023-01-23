@@ -118,12 +118,14 @@ class ChatbotBehavior:
     def escape(text: str) -> str:
         """转换unescape函数返回的值到CQ码。"""
 
-        return text.translate(
+        def replacer(match: re.Match[str]) -> str:
+            return match.group().replace(",", "&#44;")
+
+        return re.sub(r"\x9d[^\x9d\x9c]*\x9c", replacer, text).translate(
             {
                 ord("&"): "&amp;",
                 91: "&#91;",
                 93: "&#93;",
-                44: "&#44;",
                 0x9D: "[CQ:",
                 0x9C: "]",
                 0: ",",

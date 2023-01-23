@@ -1,4 +1,5 @@
 import random
+import re
 import time
 from collections.abc import Generator
 from typing import Union
@@ -73,3 +74,10 @@ class Demonstration(ChatbotBehavior):
         for _ in range(n - 1):
             text = yield text
         return text
+
+    def on_command_debug_face(self, x: str):
+        if match := re.fullmatch(r"\x9dface\0id=(\d+)\x9c", x):
+            id = int(match.group(1))
+        else:
+            id = int(x)
+        return self.cq("face", id=id) + f" = #{id}"
