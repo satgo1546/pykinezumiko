@@ -126,13 +126,13 @@ def match_start_or_end(pattern: str, text: str, flags=0) -> Optional[re.Match[st
 
 
 def parse_command(
-    parameters: dict[str, type],
+    parameters: dict[str, tuple[type, bool]],
     given_arguments: dict[str, Any],
     text: str,
 ) -> dict[str, Any]:
     """根据需要的参数类型从命令名之后的字符串中宽容地解析参数。
 
-    :param parameters: 需要的参数名到参数类型的映射。将按字典顺序依次提取参数。
+    :param parameters: 需要的参数名到(参数类型, 是否可选)的映射。将按字典顺序依次提取参数。
 
     仅支持下列基本数据类型。
 
@@ -147,7 +147,7 @@ def parse_command(
     kwargs = {}
     first_parameter = True
     last_str_parameter_name = None
-    for name, parameter in parameters.items():
+    for name, (parameter, optional) in parameters.items():
         if name in given_arguments:
             kwargs[name] = given_arguments[name]
             continue
@@ -177,6 +177,8 @@ def parse_command(
             first_parameter = False
             kwargs[name] = parameter(match.group())
             text = text[: match.start()] + text[match.end() :]
+        elif optional:
+            pass
         elif first_parameter:
             raise CommandSyntaxError()
         else:

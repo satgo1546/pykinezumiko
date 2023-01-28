@@ -406,9 +406,12 @@ class ChatbotBehavior:
                 try:
                     kwargs = humanity.parse_command(
                         {
-                            parameter.name: parameter.annotation
+                            parameter.name: (
+                                parameter.annotation,
+                                parameter.default is not inspect.Parameter.empty,
+                            )
                             for parameter in inspect.signature(f).parameters.values()
-                            if parameter.annotation is not parameter.empty
+                            if parameter.annotation is not inspect.Parameter.empty
                         },
                         {
                             "context": context,
