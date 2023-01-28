@@ -238,6 +238,8 @@ class ChatbotBehavior:
         :param context: 发送目标，正数表示好友，负数表示群。
         :param message: 要发送的消息内容，富文本用CQ码表示。
         """
+        if not message:
+            raise ValueError("欲发送的消息为空")
         cls.gocqhttp(
             "send_msg",
             {"user_id" if context >= 0 else "group_id": abs(context)},
