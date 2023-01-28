@@ -5,7 +5,6 @@
 """
 
 import inspect
-from itertools import chain
 import re
 import time
 from collections import OrderedDict
@@ -57,7 +56,7 @@ class ChatbotBehavior:
 
     通常，当插件处理了事件（例如回复了消息），就要返回真值。
     为方便计，可以直接返回要回复的文字，与执行send函数无异。
-    返回假值（即None、False、""）的场合，表示插件无法处理这个事件。该事件会轮替给下一个插件来处理。
+    返回None的场合，表示插件无法处理这个事件。该事件会轮替给下一个插件来处理。
     """
 
     _name_cache: ClassVar[dict[Union[int, tuple[int, int]], str]] = {}
@@ -334,11 +333,11 @@ class ChatbotBehavior:
             result = self.on_file(
                 context, sender, data["file"]["name"], data["file"]["size"], url
             )
-        # 结果是真值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
-        # 编写插件时，因为返回了数值等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此特判。
-        if context and result and result is not True:
+        # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
+        # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。
+        if context and result is not None and result is not True:
             self.send(context, format(result))
-        return bool(result)
+        return result is not None
 
     @overload
     def name(self, context: int, sender: int) -> str:
