@@ -15,6 +15,8 @@ if __name__ == "__main__":
 
     subprocess.run(
         [
+            sys.executable,
+            "-m",
             "pdoc",
             "--template-directory",
             "docs/template",
