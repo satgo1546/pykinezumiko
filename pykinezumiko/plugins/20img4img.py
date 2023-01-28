@@ -8,7 +8,7 @@ from .. import ChatbotBehavior
 apiKey = "1145141919810HENGHENGAAAAAAAAAAAAAAPIKEY"
 
 def search(imageURL: str, num: int = 1) -> str:
-    print("search img", imageURL)
+    print("以图搜图", imageURL)
     url = "https://saucenao.com/search.php"
 
     params = {
@@ -20,7 +20,7 @@ def search(imageURL: str, num: int = 1) -> str:
     }
 
     r = requests.get(url=url, params=params)
-    print(r.text)
+    print("响应", r.text)
     min_ = json.loads(r.text).get("header").get("minimum_similarity")
     res = json.loads(r.text).get("results")
     cnt = 1
@@ -46,6 +46,7 @@ def search(imageURL: str, num: int = 1) -> str:
             ret += "第"+str(cnt)+"项匹配"+": 相似度"+j.get("header").get("similarity")+"%\n"
             ret += json.dumps(j.get("data"), indent=1)+"\n"
             cnt += 1
+    print(f"返回值 {ret!r}")
     return ret
 
 class SauceNAO(ChatbotBehavior):
