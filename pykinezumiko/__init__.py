@@ -1,3 +1,9 @@
+"""
+.. include:: ../README.md
+
+---
+"""
+
 import inspect
 import re
 import time

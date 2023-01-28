@@ -62,6 +62,8 @@ sudo apt-get install python3-flask python3-pil python3-requests git
 
 > 木鼠子——在生产环境使用调试模式实现重要特性的先驱者
 
+这次采用了模块化的结构，插件直接放置在pykinezumiko/plugins文件夹下。除了阅读ChatbotBehavior类的文档，还可以跟随典例从实践中学习插件的制作方法。
+
 ## 以下功能在梦里有
 
 因为在x86-64电脑上没法运行ARM64的程序，即使替换成x86-64版本的程序来尝试运行也势必会把树莓派上正在工作的踢下线，所以有个办法不需要真的登录QQ也能运行起一部分代码。单纯运行`python -m pykinezumiko`的话，只会启动Flask端。用浏览器访问`http://localhost:5701/`，因为检测到是来自浏览器的GET而非来自go-cqhttp的POST，就会提供一个假的聊天窗口。因为是假的聊天窗口，所以很多功能都用不了，只适合用来测试聊天AI，与QQ绑定的逻辑还是要传到树莓派上实机测试。
