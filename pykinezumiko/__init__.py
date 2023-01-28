@@ -398,6 +398,8 @@ class ChatbotBehavior:
         on_command_×××方法的参数必须支持按参数名传入（关键字参数），且正确标注类型。
         有名为context、sender、text、message_id的参数时，对应的值会被传入。
         """
+        # 到底为什么会收到有\r\n的消息啊？
+        text.replace("\r\n", "\n")
         parts = humanity.tokenize_command_name(text)
         while parts:
             name = "".join(parts)

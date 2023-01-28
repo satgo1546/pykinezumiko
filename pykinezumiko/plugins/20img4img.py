@@ -7,7 +7,8 @@ from .. import ChatbotBehavior
 
 apiKey = "1145141919810HENGHENGAAAAAAAAAAAAAAPIKEY"
 
-def search(imageURL: str, num: int = 1):
+def search(imageURL: str, num: int = 1) -> str:
+    print("search img", imageURL)
     url = "https://saucenao.com/search.php"
 
     params = {
@@ -19,6 +20,7 @@ def search(imageURL: str, num: int = 1):
     }
 
     r = requests.get(url=url, params=params)
+    print(r.text)
     min_ = json.loads(r.text).get("header").get("minimum_similarity")
     res = json.loads(r.text).get("results")
     cnt = 1
