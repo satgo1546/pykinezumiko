@@ -5,6 +5,7 @@
 """
 
 import inspect
+from itertools import chain
 import re
 import time
 from collections import OrderedDict
@@ -74,15 +75,29 @@ class ChatbotBehavior:
         从(context, sender)到(最后活动时间戳, 程序执行状态)的映射，按最后活动时间从早到晚排序。
         """
 
-    @staticmethod
-    def unescape(raw_message: str) -> str:
+    KNOWN_ENTITIES = {
+        "face": ["id"],
+        "image": ["url", "type", "subType"],
+        "record": ["url", "magic"],
+        "at": ["qq"],
+        "share": ["url", "title", "content", "image"],
+        "reply": ["id", "seq"],
+        "poke": ["qq"],
+        "forward": ["id"],
+        "xml": ["resid", "data"],
+        "json": ["resid", "data"],
+    }
+    """unescape方法会将部分已知的控制序列命名参数按此处的顺序排列，以便依靠正则表达式匹配接收到的文本。"""
+
+    @classmethod
+    def unescape(cls, raw_message: str) -> str:
         r"""转换传入的CQ码到更不容易遇到转义问题的格式。
-        
+
         CQ码表示为"[CQ:face,id=178]"的消息会被转换为"\x9dface\0id=178\x9c"。
         基本上，"["对应"\x9d"，"]"对应"\x9c"，","对应"\0"。
         通过使用莫名其妙的控制字符，使控制序列与常规文本冲突的可能性降到极低。
         当输入确实包含"\x9d"和"\x9c"时就完蛋了，到那时再自求多福吧。
-        
+
         【已否决的设计】
         [CQ:控制序列,参数名=参数值,参数名=参数值]
             由酷Q设计，在QQ机器人界，这种格式十分流行。
@@ -110,7 +125,17 @@ class ChatbotBehavior:
         """
 
         def replacer(match: re.Match[str]) -> str:
-            return "\x9d" + match.group(1).replace(",", "\0") + "\x9c"
+            name, _, args = match.group(1).partition(",")
+            args = args.split(",") if args else []
+            args = dict(x.partition("=")[::2] for x in args)
+            # 试图用itertools.chain改写下列对extend的调用会导致……
+            # args.items在之前args.pop被调用，引发“迭代时字典大小变化”的运行时异常。
+            ret = [name]
+            ret.extend(
+                f"{k}={args.pop(k, '')}" for k in cls.KNOWN_ENTITIES.get(name, ())
+            )
+            ret.extend(f"{k}={v}" for k, v in args.items())
+            return "\x9d" + "\0".join(ret) + "\x9c"
 
         return (
             re.sub(r"\[CQ:(.*?)\]", replacer, raw_message, re.DOTALL)
