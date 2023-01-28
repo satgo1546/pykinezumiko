@@ -536,6 +536,13 @@ class NameCacheUpdater(ChatbotBehavior):
         return False
 
 
+class Logger(ChatbotBehavior):
+    """调试用，在控制台中输出消息的内部表示。"""
+
+    def on_message(self, context: int, sender: int, text: str, message_id: int):
+        print(context, sender, repr(text), message_id)
+
+
 class HelpProvider(ChatbotBehavior):
     """提供.help命令的插件。@ChatbotBehavior.documented默认将帮助信息置于此处。"""
 
