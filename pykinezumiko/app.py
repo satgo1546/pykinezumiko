@@ -1,8 +1,10 @@
+import importlib
 import os
 import time
-import importlib
+
 from flask import Flask, request
-from . import ChatbotBehavior, docstore
+
+from . import ChatbotBehavior, conf, docstore
 
 # 从plugins文件夹下加载所有Python模块。
 modules = [
@@ -94,6 +96,8 @@ def gocqhttp_event():
         e.__traceback__
         if context:
             ChatbotBehavior.send(context, f"\u267b\ufe0f {e!r}")
+        else:
+            ChatbotBehavior.send(conf.INTERIOR, f"\u267b\ufe0f 处理无来源事件时发生了下列异常：{e!r}")
         # 异常将由Flask捕获并打印到控制台，因此再行抛出。
         raise
     return ""
