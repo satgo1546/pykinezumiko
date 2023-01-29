@@ -1,6 +1,8 @@
 import re
+import typing
 import unicodedata
 from itertools import filterfalse, groupby
+from types import NoneType
 from typing import Any, NoReturn, Optional, SupportsInt, Union
 
 
@@ -139,6 +141,8 @@ def parse_command(
     - Never（NoReturn）。该参数必定匹配失败。因为匹配失败时会显示帮助信息，所以可用于实现.help等没有实际功能的命令。
     - int和float。
     - str。因为参数用空白分割，只有最后一个str参数才会笼络空白。
+    - Union。易碎的细节：按指定顺序匹配，因此int | str可能传入整数或字符串，而str | int等同于str。
+    - Optional。
 
     :param given_arguments: 已知的参数。如果需要其中的参数，就直接赋予，不从字符串中解析。
     :param text: 待解析的字符串。
@@ -156,33 +160,48 @@ def parse_command(
         text = text.strip()
 
         # 根据参数类型匹配字符串。
-        if parameter is NoReturn:
-            match = None
-        elif parameter is int:
-            match = match_start_or_end(
-                r"[+-]?(\d+|0x[0-9a-f]+|0o[0-7]+|0b[01]+)", text, re.IGNORECASE
-            )
-        elif parameter is float:
-            match = match_start_or_end(
-                r"[+-]?(\d*\.\d*|0x[0-9a-f]*\.[0-9a-f]*p\d+|\d+)", text, re.IGNORECASE
-            )
-        elif parameter is str:
-            last_str_parameter_name = name
-            match = re.match(r"\S+", text)
+        for parameter in (
+            typing.get_args(parameter)
+            if typing.get_origin(parameter) is Union
+            else (parameter,)
+        ):
+            if parameter is NoReturn:
+                match = None
+            elif parameter is None or parameter is NoneType:
+                # 以Optional[int]（= Union[int, None]）为例。
+                # 遇到None时表明当前处在Optional中，而int无法匹配。
+                # 此时在参数项中放入None，将参数视为有默认值，不阻止后续类型匹配成功覆盖此参数值。
+                match = None
+                kwargs[name] = None
+                optional = True
+            elif parameter is int:
+                match = match_start_or_end(
+                    r"[+-]?(\d+|0x[0-9a-f]+|0o[0-7]+|0b[01]+)", text, re.IGNORECASE
+                )
+            elif parameter is float:
+                match = match_start_or_end(
+                    r"[+-]?(\d*\.\d*|0x[0-9a-f]*\.[0-9a-f]*p\d+|\d+)",
+                    text,
+                    re.IGNORECASE,
+                )
+            elif parameter is str:
+                last_str_parameter_name = name
+                match = re.match(r"\S+", text)
+            else:
+                raise CommandSyntaxError(f"插件命令的参数 {name} 拥有不能理解的参数类型 {parameter}。")
+            # 将值填入参数表中。
+            if match:
+                first_parameter = False
+                kwargs[name] = parameter(match.group())
+                text = text[: match.start()] + text[match.end() :]
+                break
         else:
-            raise CommandSyntaxError(f"插件命令的参数 {name} 拥有不能理解的参数类型。")
-
-        # 将值填入参数表中。
-        if match:
-            first_parameter = False
-            kwargs[name] = parameter(match.group())
-            text = text[: match.start()] + text[match.end() :]
-        elif optional:
-            pass
-        elif first_parameter:
-            raise CommandSyntaxError()
-        else:
-            raise CommandSyntaxError(f"解析命令时找不到参数 {name}。")
+            if optional:
+                pass
+            elif first_parameter:
+                raise CommandSyntaxError()
+            else:
+                raise CommandSyntaxError(f"解析命令时找不到参数 {name}。")
 
     # 清理解析完所有参数后剩下的字符串。
     if text.lstrip():
