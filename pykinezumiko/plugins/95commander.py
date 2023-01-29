@@ -60,16 +60,13 @@ class Commander(ChatbotBehavior):
         return "\n".join(ret)
 
     def on_command_print(self, expr: str):
-        # TODO：因为有CQ码，导致大量有用的程序符号被转义，聊天框写代码根本放不开。建议把CQ码干掉，还是换成木鼠子码。
-        # 这样能防止循环导入？但是似乎直接在开头导入也没问题的说……
-        from ..__main__ import plugins
+        from .. import app
 
         return repr(
             eval(
                 expr,
                 globals()
-                | {type(p).__name__: type(p) for p in plugins}
-                | {"I": {type(p): p for p in plugins}}
-                | {"plugins": plugins},
+                | {type(p).__name__: type(p) for p in app.plugins}
+                | {type(p).__name__.casefold(): p for p in app.plugins}
             )
         )
