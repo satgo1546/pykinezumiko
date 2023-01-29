@@ -67,6 +67,6 @@ class Commander(ChatbotBehavior):
                 expr,
                 globals()
                 | {type(p).__name__: type(p) for p in app.plugins}
-                | {type(p).__name__.casefold(): p for p in app.plugins}
+                | {type(p).__name__.lower(): p for p in app.plugins}
             )
         )
