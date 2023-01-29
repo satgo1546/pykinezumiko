@@ -1,5 +1,4 @@
 import logging
-import os
 import subprocess
 import sys
 import time
@@ -60,16 +59,6 @@ def report(text: object) -> None:
         print(f"汇报消息失败 {text}")
 
 
-# logging config
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.DEBUG,
-    filename="daemon.log",
-    filemode="a",
-)
-logger = logging.getLogger(__name__)
-
-
 def main() -> NoReturn:
     process = None
     start_time = time.strftime("%c %z")
@@ -111,4 +100,12 @@ def main() -> NoReturn:
 
 
 if __name__ == "__main__":
+    # logging config
+    logging.basicConfig(
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        level=logging.DEBUG,
+        filename="daemon.log",
+        filemode="a",
+    )
+    logger = logging.getLogger(__name__)
     main()

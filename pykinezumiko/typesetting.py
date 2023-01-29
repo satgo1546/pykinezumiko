@@ -245,6 +245,3 @@ def pil_image_to_base64(img: Image.Image) -> str:
     with io.BytesIO() as f:
         img.save(f, format="PNG")
         return base64.b64encode(f.getvalue()).decode()
-
-
-text_bitmap().save("output.png", "PNG")
