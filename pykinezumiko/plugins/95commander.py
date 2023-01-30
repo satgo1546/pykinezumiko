@@ -37,7 +37,9 @@ class Commander(ChatbotBehavior):
     def on_command_debug_s(self, context: int, sender: int):
         ret = ["下面是调试信息。"]
         ret.append(f"消息发送者 ID = {sender}")
+        ret.append(f"消息发送者 = {self.name(sender)}")
         ret.append(f"消息上下文 ID = {context}")
+        ret.append(f"消息上下文 = {self.name(context)}")
         if context == conf.INTERIOR:
             ret.append("消息来自管理用群。")
         ret.append("现在 = " + time.strftime("%-Y 年 %-m 月 %-d 日 %H:%M %Z"))

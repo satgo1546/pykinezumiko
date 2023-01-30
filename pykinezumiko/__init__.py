@@ -46,7 +46,7 @@ class ChatbotBehavior:
     继承此类且没有子类的类将自动被视为插件而实例化。
     通过覆盖以“on_”开头的方法，可以监听事件。
     因为这些方法都是空的，不必在覆盖的方法中调用super。
-    可以在事件处理中调用messenger模块中的方法来作出行动。
+    可以在事件处理中调用基类中的方法来作出行动。
 
     事件包含整数型的context和sender参数。
     正数表示好友，负数表示群。
@@ -90,7 +90,7 @@ class ChatbotBehavior:
 
     @classmethod
     def unescape(cls, raw_message: str) -> str:
-        r"""转换传入的CQ码到更不容易遇到转义问题的格式。
+        r"""转换传入的CQ码到更不容易遇到转义问题的木鼠子码。
 
         CQ码表示为"[CQ:face,id=178]"的消息会被转换为"\x9dface\0id=178\x9c"。
         基本上，"["对应"\x9d"，"]"对应"\x9c"，","对应"\0"。
@@ -146,7 +146,7 @@ class ChatbotBehavior:
 
     @staticmethod
     def escape(text: str) -> str:
-        """转换unescape函数返回的值到CQ码。"""
+        """转换unescape函数所用的木鼠子码到CQ码。"""
 
         def replacer(match: re.Match[str]) -> str:
             return match.group().replace(",", "&#44;")
@@ -162,51 +162,6 @@ class ChatbotBehavior:
             }
         )
 
-    @overload
-    @staticmethod
-    def cq(type: Literal["face"], *, id: int) -> str:
-        ...
-
-    @overload
-    @staticmethod
-    def cq(type: Literal["at"], *, id: Union[int, Literal["all"]]) -> str:
-        ...
-
-    @overload
-    @staticmethod
-    def cq(type: Literal["image"], *, file: str) -> str:
-        ...
-
-    @overload
-    @staticmethod
-    def cq(type: Literal["record"], *, file: str) -> str:
-        ...
-
-    @overload
-    @staticmethod
-    def cq(type: Literal["poke"], *, id: int) -> str:
-        ...
-
-    @overload
-    @staticmethod
-    def cq(type: Literal["xml"], *, data: str, resid: int = 0) -> str:
-        ...
-
-    @overload
-    @staticmethod
-    def cq(type: Literal["json"], *, data: str, resid: int = 0) -> str:
-        ...
-
-    @staticmethod
-    def cq(type, **kwargs) -> str:
-        """在消息中类型安全地嵌入富文本元素。
-
-        f"咖啡 = {self.cq('face', id=60)}"
-        """
-        return (
-            "\x9d" + type + "".join(f"\0{k}={v!s}" for k, v in kwargs.items()) + "\x9c"
-        )
-
     @staticmethod
     def gocqhttp(endpoint: str, data: dict = {}, **kwargs) -> dict:
         """向go-cqhttp发送请求，并返回响应数据。
@@ -215,9 +170,13 @@ class ChatbotBehavior:
         https://docs.go-cqhttp.org/api/
 
         使用例：
+
         - 发送私聊消息
+
             gocqhttp("send_private_msg", user_id=114514, message="你好")
+
         - 获取当前登录账号的昵称
+
             gocqhttp("get_login_info")["nickname"]
         """
         kwargs.update(data)
@@ -235,10 +194,8 @@ class ChatbotBehavior:
         """发送消息。
 
         :param context: 发送目标，正数表示好友，负数表示群。
-        :param message: 要发送的消息内容，富文本用CQ码表示。
+        :param message: 要发送的消息内容，富文本用木鼠子码表示。
         """
-        if not message:
-            raise ValueError("欲发送的消息为空")
         cls.gocqhttp(
             "send_msg",
             {"user_id" if context >= 0 else "group_id": abs(context)},

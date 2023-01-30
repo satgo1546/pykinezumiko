@@ -84,10 +84,8 @@ class Demonstration(ChatbotBehavior):
             id = int(match.group(1))
         else:
             id = int(x)
-        return self.cq("face", id=id) + f" = {id}"
+        return f"\x9dface\0id={id}\x9c = {id}"
 
     def on_command_debug_img(self):
-        return "查看下列图片：" + self.cq(
-            "image",
-            file=pathlib.Path("pykinezumiko/resources/sample.png").resolve().as_uri(),
-        )
+        uri = pathlib.Path("pykinezumiko/resources/sample.png").resolve().as_uri()
+        return f"查看下列图片：\x9dimage\0file={uri}\x9c"
