@@ -5,6 +5,7 @@ import re
 import requests
 from PIL import Image
 from io import BytesIO
+import os
 
 from .. import ChatbotBehavior, conf, docstore
 
@@ -77,10 +78,10 @@ class VLink(ChatbotBehavior):
             f"因为系统问题，管理员在确认后为你调整了订阅时长。现在" if bug else f"确认 {cents / 100.0} 元。"
         ) + f"订阅 {days} 日至 #{expiry}。"
 
-    def on_command_img(self, user: int, text: str):
-        # 如果用户直接发送了一个图片URL，如 https://……
-        if re.fullmatch(r'https?://\S+', text):
-            response = requests.get(text)
+    def on_message(self, context: int, sender: int, text: str, message_id: int):
+        # 如果消息以图片开头（含仅包含一张图片的情况）……
+        if match := re.match(r'\x9dimage\0url=(.*?)\0', text):
+            response = requests.get(match.group(1))
             with Image.open(BytesIO(response.content)).convert('RGB') as img:
                 size = img.size
                 total_pixels = size[0] * size[1]
@@ -92,10 +93,13 @@ class VLink(ChatbotBehavior):
                             white_pixels += 1
                 ratio = white_pixels / total_pixels
                 if ratio > 0.6:
-                    #TODO 感觉直接转发会更好
+                    # 直接转发
                     self.send(
                         conf.INTERIOR,
-                        f"user = {user}, img = {text}"
+                        f"user = {sender}, img = {text}"
                     )
-                    #TODO 存储在账单目录下
+                    # 存储在账单目录下
+                    os.makedirs("logs/zd", exist_ok=True)
+                    with open(os.path.join("logs/zd", ".png"), "wb") as f:
+                        f.write(response.content)
                     return "判断为《账单》，转发等待审核中"
