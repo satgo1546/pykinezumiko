@@ -33,7 +33,7 @@ ComparableT = TypeVar("ComparableT", bound=Comparable)
 RecordT = TypeVar("RecordT", bound="Record")
 
 
-@dataclass_transform()
+@dataclass_transform(kw_only_default=True)
 class Table(type):
     """记录的元类。
 

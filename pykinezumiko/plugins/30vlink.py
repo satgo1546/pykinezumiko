@@ -26,8 +26,8 @@ def cents_to_days(cents: int) -> float:
 
 
 class Subscription(docstore.Record):
+    # 索引值是记录的添加时间
     user: int
-    timestamp: float
     identifier: str  # 表明该记录来源（账单识别（日期）、.debug link命令等）
     cents: int
     expiry: float
@@ -60,9 +60,8 @@ class VLink(ChatbotBehavior):
                 return "该记录已确认过。"
             expiry = max(expiry, subscription.expiry)
         expiry += days * 86400
-        Subscription[len(Subscription)] = Subscription(
+        Subscription[time.time()] = Subscription(
             user=user,
-            timestamp=time.time(),
             identifier=identifier,
             cents=cents,
             expiry=expiry,
