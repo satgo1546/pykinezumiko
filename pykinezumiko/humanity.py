@@ -2,7 +2,6 @@ import re
 import typing
 import unicodedata
 from itertools import filterfalse, groupby
-from types import NoneType
 from typing import Any, NoReturn, Optional, SupportsInt, Union
 
 
@@ -167,7 +166,7 @@ def parse_command(
         ):
             if parameter is NoReturn:
                 match = None
-            elif parameter is None or parameter is NoneType:
+            elif parameter is None or parameter is type(None):
                 # 以Optional[int]（= Union[int, None]）为例。
                 # 遇到None时表明当前处在Optional中，而int无法匹配。
                 # 此时在参数项中放入None，将参数视为有默认值，不阻止后续类型匹配成功覆盖此参数值。
