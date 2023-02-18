@@ -133,7 +133,8 @@ class Table(type):
     def __len__(self) -> int:
         return len(self.table)
 
-    #TODO: def __iter__, pop, popitem, clear, update, setdefault, __contains__, get
+    # TODO: def __iter__, pop, popitem, clear, update, setdefault, __contains__, get
+
 
 class Record(metaclass=Table):
     def __init__(self, **kwargs) -> None:
@@ -177,6 +178,7 @@ class Database:
             workbook_data = {}
         for table in self.tables:
             worksheet_data = workbook_data.get(table.__name__)
+            field_types = typing.get_type_hints(table)
             # 注意Table没有__init__，table属性是在这里初始化的。
             table.table = {}
             if worksheet_data:
@@ -191,7 +193,11 @@ class Database:
                         break
                     row = table()
                     for j, field in enumerate(fields):
-                        setattr(row, field, worksheet_data[i + 1, j + 1])
+                        # 迫使标有类型的字段值转换到标注的类型。仅适用于有单参数构造函数的数据类型。
+                        cell = worksheet_data[i + 1, j + 1]
+                        if not isinstance(cell, field_types.get(field, object)):
+                            cell = field_types[field](cell)
+                        setattr(row, field, cell)
                     table.table[worksheet_data[i + 1, 0]] = row
             table.dirty = False
 
