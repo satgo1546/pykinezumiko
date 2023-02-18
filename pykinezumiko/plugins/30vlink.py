@@ -1,13 +1,17 @@
 import math
-import time
+import os
 import re
+import time
+import zlib
+from io import BytesIO
+
 import requests
 from PIL import Image
-from io import BytesIO
-import os
 
 from .. import ChatbotBehavior, conf, docstore
 from ..ponyfill import bisect_right
+
+github_token = "ghp_1145141919810HengHengAaaaaaaaaaaargh"
 
 
 def days_to_cents(days: float) -> int:
@@ -47,19 +51,22 @@ class VLink(ChatbotBehavior):
             ),
         )
         self.send(conf.INTERIOR,
-                  f"[{self.name(sender)}] 增加了 #{days} 日 #{user} 的订阅时长。")
+                  f"[{self.name(sender)}] 增加了 {days} 日和相当于 {dollars} 元 {user} 的订阅时长。")
 
     def vlink_subscribe(
         self, user: int, identifier: str, cents: int, days: float, bug: bool
     ) -> str:
         expiry = time.time()  # 当前订阅过期日期
         for subscription in Subscription.values():
-            if subscription.user == user and subscription.identifier == identifier:
-                self.send(conf.INTERIOR,
-                          f"{user} 试图多次发送具有相同账单时间 {identifier} 的图像。")
-                return "该记录已确认过。"
-            expiry = max(expiry, subscription.expiry)
-        expiry += days * 86400
+            if subscription.user == user:
+                if subscription.identifier == identifier:
+                    self.send(
+                        conf.INTERIOR,
+                        f"{user} 试图多次发送具有相同账单时间 {identifier} 的图像。",
+                    )
+                    return "该记录已确认过。"
+                expiry = max(expiry, subscription.expiry)
+        expiry += days * 86400 + cents_to_days(cents)
         Subscription[time.time()] = Subscription(
             user=user,
             identifier=identifier,
@@ -75,9 +82,47 @@ class VLink(ChatbotBehavior):
         )
         return (
             f"因为系统问题，管理员在确认后为你调整了订阅时长。现在" if bug else f"确认 {cents / 100.0} 元。"
-        ) + f"订阅 {days} 日至 #{expiry}。"
+        ) + f"订阅 {days} 日至 {expiry}。"
+
+    def get_expiry_dict(self) -> dict[int, float]:
+        """获取各用户的过期时间。"""
+        # 易碎的细节：字典解析式（dict comprehension）对重复键保留末次迭代的值。
+        return {subscription.user: subscription.expiry for subscription in Subscription.values()}
+
+    def vlink_refresh(self) -> None:
+        command = "# run by tenshitaux.rb^W^W^W30vlink.py\n"
+        for user, expiry in self.get_expiry_dict().items():
+            filename = f"docs/{zlib.crc32(str(user).encode())}.yml"
+            command += f"ln -vfs {'hello' if time.time() < expiry else 'mfgexp'}.yml {filename}\n"
+        response = requests.post("https://api.github.com/repos/Salenzo/Spoon-Knife/actions/workflows/ruby.yml/dispatches", headers={
+            "Content-Type": "application/json",
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"token {github_token}",
+        },data={"ref": "main", "inputs": {"name": command}})
+        print(f"更新订阅列表响应：{response.reason}，响应体 {response.content}。")
+
+    def get_vlink_url_message(self, user_id: int) -> str:
+        url = str(zlib.crc32(str(user_id).encode()))
+        if len(url) > 5:
+            url = url[:len(url)//2] + "\x9dface\0id=60\x9c" + url[len(url)//2:]
+        url = f"https:\x9dface\0id=60\x9c//metsubojinrai\x9dface\0id=60\x9c.top\x9dface\0id=60\x9c/Spoon-Knife/{url}.yml"
+        m = self.get_expiry_dict()
+        if user_id in m:
+            expiry = time.strftime("%Y 年 %-m 月 %-d 日",time.gmtime(m[user_id]+8*3600))
+            if time.time() < m[user_id]:
+                return f"[{self.name(user_id)}] 的订阅链接如下，使用期限至 {expiry}。首次使用时，可能需要数分钟才能生效。因为可能存在的河蟹，请删除表情后食用。\n‣ {url}"
+            else:
+                return f"[{self.name(user_id)}] 的订阅已于 {expiry}过期。"
+        else:
+            return f"[{self.name(user_id)}] 当前没有可用的订阅。"
+
+    def on_command_vlink(self, context: int):
+        if context > 0:  # 私聊
+            return self.get_vlink_url_message(context)
 
     def on_message(self, context: int, sender: int, text: str, message_id: int):
+        if context < 0:  # 群聊
+            return
         # 如果消息以图片开头（含仅包含一张图片的情况）……
         if match := re.match(r'\x9dimage\0url=(.*?)\0', text):
             response = requests.get(match.group(1))
