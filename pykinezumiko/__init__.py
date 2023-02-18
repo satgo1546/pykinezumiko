@@ -5,6 +5,7 @@
 """
 
 import inspect
+import os
 import re
 import time
 from collections import OrderedDict
@@ -180,6 +181,25 @@ class ChatbotBehavior:
             {"user_id" if context >= 0 else "group_id": abs(context)},
             message=cls.escape(message),
         )
+
+    @classmethod
+    def send_file(cls, context: int, filename: str, name: Optional[str] = None) -> None:
+        """发送文件。
+
+        :param context: 发送目标。
+        :param filename: 本机文件路径。
+        :param name: 发送时显示的文件名。默认为路径中指定的文件名。
+        """
+        name = name or os.path.basename(filename)
+        filename = os.path.realpath(filename)
+        if context >= 0:
+            cls.gocqhttp(
+                "upload_private_file", user_id=context, file=filename, name=name
+            )
+        else:
+            cls.gocqhttp(
+                "upload_group_file", group_id=-context, file=filename, name=name
+            )
 
     @staticmethod
     def context_sender_from_gocqhttp_event(data: dict[str, Any]) -> tuple[int, int]:

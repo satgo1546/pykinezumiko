@@ -5,6 +5,8 @@ import tarfile
 import tempfile
 import time
 
+import requests
+
 from .. import ChatbotBehavior, conf
 from ..humanity import format_timespan
 
@@ -26,12 +28,7 @@ class Commander(ChatbotBehavior):
             for dir_entry in os.scandir("."):
                 if dir_entry.name not in [".git", "data"]:
                     tar.add(dir_entry.name)
-        self.gocqhttp(
-            "upload_group_file",
-            group_id=abs(context),
-            file=filename,
-            name=os.path.basename(filename),
-        )
+        self.send_file(context, filename)
         return True
 
     def on_command_debug_s(self, context: int, sender: int):
@@ -69,6 +66,19 @@ class Commander(ChatbotBehavior):
                 expr,
                 globals()
                 | {type(p).__name__: type(p) for p in app.plugins}
-                | {type(p).__name__.lower(): p for p in app.plugins}
+                | {type(p).__name__.lower(): p for p in app.plugins},
             )
         )
+
+    def on_command_select_from(self, context: int, db: str):
+        self.send_file(context, f"excel/{db}.xlsx")
+        return True
+
+    def on_file(self, context: int, sender: int, filename: str, size: int, url: str):
+        filename = f"excel/{filename}"
+        if os.path.exists(filename):
+            old_name = f"{filename}.{time.strftime('%Y-%m-%d_%H_%M')}.xlsx"
+            os.rename(filename, old_name)
+            with open(filename, "wb") as f:
+                f.write(requests.get(url).content)
+            return f"替换了 {filename}；原始文件被重命名为 {old_name}。"
