@@ -15,7 +15,7 @@ except (ModuleNotFoundError, ImportError):
     if typing.TYPE_CHECKING:
         raise
     else:
-        dataclass_transform = lambda: lambda x: x
+        dataclass_transform = lambda **kwargs: lambda x: x
 
 from . import xlsx
 
