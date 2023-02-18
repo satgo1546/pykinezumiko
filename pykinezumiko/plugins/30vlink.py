@@ -50,6 +50,7 @@ class VLink(ChatbotBehavior):
                     dollars * 100), days, True
             ),
         )
+        self.vlink_refresh()
         self.send(conf.INTERIOR,
                   f"[{self.name(sender)}] 增加了 {days} 日和相当于 {dollars} 元 {user} 的订阅时长。")
 
@@ -66,7 +67,7 @@ class VLink(ChatbotBehavior):
                     )
                     return "该记录已确认过。"
                 expiry = max(expiry, subscription.expiry)
-        expiry += days * 86400 + cents_to_days(cents)
+        expiry += (days + cents_to_days(cents)) * 86400
         Subscription[time.time()] = Subscription(
             user=user,
             identifier=identifier,
