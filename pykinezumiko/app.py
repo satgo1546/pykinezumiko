@@ -10,9 +10,12 @@ from . import ChatbotBehavior, conf, docstore
 modules = [
     importlib.import_module("pykinezumiko.plugins." + name, ".")
     for name in sorted(
-        filename.removesuffix(".py")
-        for filename in os.listdir("pykinezumiko/plugins")
-        if filename.endswith(".py") and filename.count(".") == 1
+        entry.name.removesuffix(".py")
+        for entry in os.scandir("pykinezumiko/plugins")
+        if entry.name.endswith(".py")
+        and entry.name.count(".") == 1
+        or entry.is_dir()
+        and "." not in entry.name
     )
 ]
 
@@ -33,6 +36,7 @@ databases = [
     )
     if tables
 ]
+
 
 # 虽然只是加载而没有将模块留下，但是其中的类皆已成功定义。
 # 靠深度优先搜索找出所有继承了ChatbotBehavior但没有子类的类，它们是要实例化的插件类。
