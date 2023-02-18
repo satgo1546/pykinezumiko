@@ -3,22 +3,12 @@ import io
 import math
 import re
 from functools import cache
-from itertools import tee
-from typing import Iterable, Iterator, NamedTuple, TypeVar
+from typing import NamedTuple
 
 from PIL import Image, ImageDraw, ImageFont
 
 from . import conf
-
-T = TypeVar("T")
-
-
-def pairwise(iterable: Iterable[T]) -> Iterator[tuple[T, T]]:
-    """为了支持Python 3.9，补一个itertools.pairwise……"""
-    a, b = tee(iterable)
-    next(b, None)
-    return zip(a, b)
-
+from .ponyfill import pairwise
 
 # 虽然函数名叫truetype，但是下层调用的FreeType其实支持许多字体格式。
 # 反倒是用适用于Windows的文泉驿点阵正黑渲染会有错位。

@@ -1,6 +1,5 @@
 import math
 import time
-from bisect import bisect_right
 import re
 import requests
 from PIL import Image
@@ -8,6 +7,7 @@ from io import BytesIO
 import os
 
 from .. import ChatbotBehavior, conf, docstore
+from ..ponyfill import bisect_right
 
 
 def days_to_cents(days: float) -> int:

@@ -9,35 +9,14 @@ import re
 import time
 from collections import OrderedDict
 from collections.abc import Generator
-from typing import (
-    Any,
-    Callable,
-    ClassVar,
-    Literal,
-    NoReturn,
-    Optional,
-    TypeVar,
-    Union,
-    overload,
-)
+from typing import Any, Callable, ClassVar, NoReturn, Optional, TypeVar, Union, overload
 
 import requests
 
 from . import humanity
+from .ponyfill import bisect_left
 
 CallableT = TypeVar("CallableT", bound=Callable)
-
-
-def bisect_left(a, x, lo, key):
-    """为了支持Python 3.9，补一个支持key的二分函数……"""
-    hi = len(a)
-    while lo < hi:
-        mid = (lo + hi) // 2
-        if key(a[mid]) < x:
-            lo = mid + 1
-        else:
-            hi = mid
-    return lo
 
 
 class ChatbotBehavior:
