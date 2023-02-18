@@ -53,7 +53,7 @@ class VLink(ChatbotBehavior):
         self, user: int, identifier: str, cents: int, days: float, bug: bool
     ) -> str:
         expiry = time.time()  # 当前订阅过期日期
-        for _, subscription in Subscription.items():
+        for subscription in Subscription.values():
             if subscription.user == user and subscription.identifier == identifier:
                 self.send(conf.INTERIOR,
                           f"{user} 试图多次发送具有相同账单时间 {identifier} 的图像。")

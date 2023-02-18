@@ -4,7 +4,7 @@
 """
 
 import time
-from collections.abc import ItemsView
+from collections.abc import KeysView, ValuesView, ItemsView
 from itertools import count, takewhile
 import typing
 from typing import Any, Generator, Iterable, Protocol, TypeVar
@@ -69,7 +69,9 @@ class Table(type):
 
     多重继承真的很糟糕。
     同时继承type和dict的话，会报基类间实例内存布局冲突错。
-    同时继承type和UserDict的话，isinstance将无法正常工作。
+    同时继承type和UserDict或type和MutableMapping的话，isinstance将无法正常工作。
+    但是，直接检查__class__仍然可行。
+    因为类型标注比当前贫弱的解决方案更不充分，所以保持了手动实现各种dict方法的现状。
 
     既能使键类型成为泛型，又能正确获得元类产生的类的办法并不是没有。
 
@@ -99,7 +101,7 @@ class Table(type):
         return cls.table[key]  # type: ignore
 
     def __setitem__(cls: type[T], key: Comparable, value: T) -> None:
-        if key in cls.table or next(reversed(cls.table)) < key:  # type: ignore
+        if not cls.table or key in cls.table or next(reversed(cls.table)) < key:  # type: ignore
             cls.table[key] = value  # type: ignore
         else:
             cls.table[key] = value  # type: ignore
@@ -110,14 +112,20 @@ class Table(type):
         del cls.table[key]
         cls.dirty = True
 
-    def items(cls: type[T]) -> ItemsView[Any, T]:
+    def keys(cls) -> KeysView[Comparable]:
+        return cls.table.keys()  # type: ignore
+
+    def values(cls: type[T]) -> ValuesView[T]:
+        return cls.table.values()  # type: ignore
+
+    def items(cls: type[T]) -> ItemsView[Comparable, T]:
         return cls.table.items()  # type: ignore
 
     def clear(cls) -> None:
         cls.table.clear()
         cls.dirty = True
 
-    def update(cls: type[T], data: Iterable[tuple[Any, T]]) -> None:
+    def update(cls: type[T], data: Iterable[tuple[Comparable, T]]) -> None:
         cls.table.update(data)  # type: ignore
         cls.sort()  # type: ignore
         cls.dirty = True  # type: ignore
@@ -125,6 +133,7 @@ class Table(type):
     def __len__(self) -> int:
         return len(self.table)
 
+    #TODO: def __iter__, pop, popitem, clear, update, setdefault, __contains__, get
 
 class Record(metaclass=Table):
     def __init__(self, **kwargs) -> None:
