@@ -21,8 +21,8 @@ modules = [
 
 # 为定义了记录类的模块分配文档数据库。
 os.makedirs("excel", exist_ok=True)
-databases = [
-    docstore.Database(f"excel/{name}.xlsx", tables)
+databases = {
+    name: docstore.Database(f"excel/{name}.xlsx", tables)
     for name, tables in (
         (
             module.__name__.rpartition(".")[2],
@@ -35,7 +35,7 @@ databases = [
         for module in modules
     )
     if tables
-]
+}
 
 
 # 虽然只是加载而没有将模块留下，但是其中的类皆已成功定义。
@@ -92,7 +92,7 @@ def gocqhttp_event():
         # 易碎的细节：all和any短路求值。
         any(p.gocqhttp_event(data) for p in plugins)
         # 在处理完任意事件后自动保存所有已修改的数据库。
-        for database in databases:
+        for database in databases.values():
             if database.dirty:
                 print("写入数据库", database)
                 database.save()

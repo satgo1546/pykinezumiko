@@ -75,10 +75,14 @@ class Commander(ChatbotBehavior):
         return True
 
     def on_file(self, context: int, sender: int, filename: str, size: int, url: str):
-        filename = f"excel/{filename}"
-        if os.path.exists(filename):
-            old_name = f"{filename}.{time.strftime('%Y-%m-%d_%H_%M')}.xlsx"
-            os.rename(filename, old_name)
-            with open(filename, "wb") as f:
+        name = filename.removesuffix(".xlsx")
+        new_name = f"excel/{name}.xlsx"
+        if os.path.exists(new_name):
+            old_name = f"{new_name}.{time.strftime('%Y-%m-%d_%H_%M')}.xlsx"
+            os.rename(new_name, old_name)
+            with open(new_name, "wb") as f:
                 f.write(requests.get(url).content)
-            return f"替换了 {filename}；原始文件被重命名为 {old_name}。"
+            from .. import app
+
+            app.databases[name].reload()
+            return f"替换了 {new_name}；原始文件被重命名为 {old_name}。"
