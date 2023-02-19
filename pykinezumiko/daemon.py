@@ -97,7 +97,7 @@ def main() -> NoReturn:
         except subprocess.TimeoutExpired:
             # Flask进程仍在正常运行
             checkPullThenPush()
-        except:
+        except Exception:
             # 发生了异常
             logger.error("发生了异常！", exc_info=True)
 
