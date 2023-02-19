@@ -90,17 +90,23 @@ class VLink(ChatbotBehavior):
         # 易碎的细节：字典解析式（dict comprehension）对重复键保留末次迭代的值。
         return {subscription.user: subscription.expiry for subscription in Subscription.values()}
 
-    def vlink_refresh(self) -> None:
+    def vlink_refresh(self) -> requests.Response:
         command = "# run by tenshitaux.rb^W^W^W30vlink.py\n"
         for user, expiry in self.get_expiry_dict().items():
             filename = f"docs/{zlib.crc32(str(user).encode())}.yml"
             command += f"ln -vfs {'hello' if time.time() < expiry else 'mfgexp'}.yml {filename}\n"
-        response = requests.post("https://api.github.com/repos/Salenzo/Spoon-Knife/actions/workflows/ruby.yml/dispatches", headers={
-            "Content-Type": "application/json",
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"token {github_token}",
-        },data={"ref": "main", "inputs": {"name": command}})
-        print(f"更新订阅列表响应：{response.reason}，响应体 {response.content}。")
+        return requests.post(
+            "https://api.github.com/repos/Salenzo/Spoon-Knife/actions/workflows/ruby.yml/dispatches",
+            headers={
+                "Accept": "application/vnd.github+json",
+                "Authorization": f"Bearer {github_token}",
+            },
+            json={"ref": "main", "inputs": {"name": command}},
+        )
+
+    def on_command_debug_vlink_refresh(self):
+        response = self.vlink_refresh()
+        return f"更新订阅列表响应：{response.reason}，响应体 {response.content}。"
 
     def get_vlink_url_message(self, user_id: int) -> str:
         url = str(zlib.crc32(str(user_id).encode()))

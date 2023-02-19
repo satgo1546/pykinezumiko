@@ -58,6 +58,10 @@ class Commander(ChatbotBehavior):
             ret.append(f"卷已用空间 = {str3}")
         return "\n".join(ret)
 
+    def on_command_debug_to(self, target: int, content: str):
+        self.send(target, content)
+        return f"重定向 {content} 到 [{self.name(target)}]。"
+
     def on_command_print(self, expr: str):
         from .. import app
 
