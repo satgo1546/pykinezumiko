@@ -147,7 +147,11 @@ class VLink(ChatbotBehavior):
                     # 直接转发
                     self.send(
                         conf.INTERIOR,
-                        f"user: {sender} {text} .debug link {sender} $"
+                        f"{text}"
+                    )
+                    self.send(
+                        conf.INTERIOR,
+                        f".debug link {sender} $"
                     )
                     # 存储在账单目录下
                     os.makedirs("logs/zd", exist_ok=True)
