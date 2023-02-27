@@ -2,6 +2,7 @@ import math
 import os
 import re
 import time
+from typing import Union
 import zlib
 from io import BytesIO
 
@@ -55,7 +56,7 @@ class VLink(ChatbotBehavior):
                   f"[{self.name(sender)}] 增加了 {days} 日和相当于 {dollars} 元 {user} 的订阅时长。")
 
     @staticmethod
-    def scatter(x: int | str) -> int:
+    def scatter(x: Union[int, str]) -> int:
         return zlib.crc32(str(x).encode())
 
     def on_command_debug_vlink_who(self, y: int):
