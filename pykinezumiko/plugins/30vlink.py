@@ -54,6 +54,14 @@ class VLink(ChatbotBehavior):
         self.send(conf.INTERIOR,
                   f"[{self.name(sender)}] 增加了 {days} 日和相当于 {dollars} 元 {user} 的订阅时长。")
 
+    @staticmethod
+    def scatter(x: int | str) -> int:
+        return zlib.crc32(str(x).encode())
+
+    def on_command_debug_vlink_who(self, y: int):
+        x = {x for x in self.get_expiry_dict().keys() if self.scatter(x) == y}
+        return f"{x!r} ↦ {y} ↦ {self.scatter(y)}"
+
     def vlink_subscribe(
         self, user: int, identifier: str, cents: int, days: float, bug: bool
     ) -> str:
@@ -93,7 +101,7 @@ class VLink(ChatbotBehavior):
     def vlink_refresh(self) -> requests.Response:
         command = "# run by tenshitaux.rb^W^W^W30vlink.py\n"
         for user, expiry in self.get_expiry_dict().items():
-            filename = f"docs/{zlib.crc32(str(user).encode())}.yml"
+            filename = f"docs/{self.scatter(user)}.yml"
             command += f"ln -vfs {'hello' if time.time() < expiry else 'mfgexp'}.yml {filename}\n"
         return requests.post(
             "https://api.github.com/repos/Salenzo/Spoon-Knife/actions/workflows/ruby.yml/dispatches",
@@ -109,7 +117,7 @@ class VLink(ChatbotBehavior):
         return f"更新订阅列表响应：{response.reason}，响应体 {response.content}。"
 
     def get_vlink_url_message(self, user_id: int) -> str:
-        url = str(zlib.crc32(str(user_id).encode()))
+        url = str(self.scatter(user_id))
         if len(url) > 5:
             url = url[:len(url)//2] + "\x9dface\0id=60\x9c" + url[len(url)//2:]
         url = f"https:\x9dface\0id=60\x9c//metsubojinrai\x9dface\0id=60\x9c.top\x9dface\0id=60\x9c/Spoon-Knife/{url}.yml"
