@@ -8,6 +8,7 @@ from io import BytesIO
 
 import requests
 from PIL import Image
+import numpy as np
 
 from .. import ChatbotBehavior, conf, docstore
 from ..ponyfill import bisect_right
@@ -167,3 +168,28 @@ class VLink(ChatbotBehavior):
                     with open(os.path.join("logs/zd", ".png"), "wb") as f:
                         f.write(response.content)
                     return "判断为《账单》，转发等待审核中"
+                else:
+                    img_array = np.array(img.convert('HSV'))
+                    width, height = img.size
+
+                    lower_blue = np.array([130, 50, 50])
+                    upper_blue = np.array([160, 255, 255])
+
+                    blue_mask = np.logical_and(np.logical_and(img_array[..., 0] >= lower_blue[0], img_array[..., 1] >= lower_blue[1]), img_array[..., 2] >= lower_blue[2])
+                    blue_mask = np.logical_and(np.logical_and(blue_mask, img_array[..., 0] <= upper_blue[0]), img_array[..., 1] <= upper_blue[1])
+                    blue_mask = np.logical_and(blue_mask, img_array[..., 2] <= upper_blue[2])
+
+                    blue_pixels = np.count_nonzero(blue_mask)
+                    total_pixels = width * height
+                    proportion_blue = blue_pixels / total_pixels
+
+                    if proportion_blue>0.2:
+                        self.send(
+                            conf.INTERIOR,
+                            f"{text}"
+                        )
+                        self.send(
+                            conf.INTERIOR,
+                            f".debug link {sender} $"
+                        )
+                        return "判断为《转账》，缺少日期信息无法归档，请使用账单图片。点击[我的]，找到[账单]截图即可"
