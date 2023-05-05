@@ -43,7 +43,7 @@ class VLink(ChatbotBehavior):
     def on_command_debug_link(self, sender: int, user: int, amount: str):
         """.debug link ⟨用户⟩ [⟨天⟩][$◊]"""
         days, _, dollars = amount.partition("$")
-        days = float("0" + days)
+        days = float(days or "0")
         dollars = float(dollars or "0")
         self.send(
             user,
