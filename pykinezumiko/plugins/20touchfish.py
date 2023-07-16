@@ -35,7 +35,7 @@ class TouchFish(ChatbotBehavior):
 
         # 每天上午七点定时在管理群发摸鱼人日历
         if stamp2day(stp, 8) != last and stamp2hour(stp, 8) > 7:
-            self.on_command_touch_fish(conf.INTERIOR)
             # 标记当前日期
             with open(self.path, "w") as f:
                 print(stamp2day(stp, 8), file=f)
+            self.on_command_touch_fish(conf.INTERIOR)
