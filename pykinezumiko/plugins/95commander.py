@@ -19,8 +19,39 @@ class Commander(ChatbotBehavior):
 
     def on_command_reload(self):
         print("重启")
-        # 因为是正常退出，守护进程会自动重启Flask进程。
-        os._exit(0)
+        # 提交变更后，先从远程仓库拉取，再推送到远程。
+        subprocess.run(["git", "add", "."], check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.email=@",
+                "-c",
+                "user.name=守护进程",
+                "commit",
+                "-m",
+                "",
+                "--allow-empty",
+                "--allow-empty-message",
+            ],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "pull", "--no-rebase", "--no-edit", "origin", "main"], check=True
+        )
+        subprocess.run(["git", "push"])
+        # 尝试启动新的版本。
+        process = subprocess.Popen(
+            [sys.executable, "-m", "pykinezumiko", "通过.reload启动"]
+        )
+        try:
+            process.wait(5)
+        except subprocess.TimeoutExpired:
+            # Flask进程启动一段时间内仍在正常运行，表明可以安全地切换到新版。
+            exit()
+        else:
+            # 新版存在问题。
+            return f"Flask进程寄啦（{process.returncode}）！请尽快修复后重新执行.reload。"
 
     def on_command_backup(self, context: int):
         filename = tempfile.mktemp(".tar.xz", "pykinezumiko-")
@@ -41,7 +72,6 @@ class Commander(ChatbotBehavior):
             ret.append("消息来自管理用群。")
         ret.append("现在 = " + time.strftime("%-Y 年 %-m 月 %-d 日 %H:%M %Z"))
         ret.append(f"所在 = {os.getcwd()}")
-        ret.append(f"守护进程：{sys.argv[1]}")
         if os.name == "posix":
             with open("/proc/uptime", "r") as f:
                 str1 = format_timespan(float(f.readline().split()[0]))

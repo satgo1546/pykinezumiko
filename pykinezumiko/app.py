@@ -1,6 +1,8 @@
 import importlib
 import os
+import sys
 import time
+import traceback
 
 from flask import Flask, request
 
@@ -97,11 +99,17 @@ def gocqhttp_event():
                 print("写入数据库", database)
                 database.save()
     except Exception as e:
-        e.__traceback__
+        # 打印错误堆栈到控制台。
+        # 通常的Flask应用中，只需再行抛出。但是，因为使用了自定义的服务器类，这么做会导致进程终止。
+        traceback.print_exc()
         if context:
             ChatbotBehavior.send(context, f"\u267b\ufe0f {e!r}")
         else:
             ChatbotBehavior.send(conf.INTERIOR, f"\u267b\ufe0f 处理无来源事件时发生了下列异常：{e!r}")
-        # 异常将由Flask捕获并打印到控制台，因此再行抛出。
-        raise
     return ""
+
+
+# 这应当在app启动时执行。但是Flask未提供这个钩子，只好相当随便地塞在这里。
+if len(sys.argv) > 1:
+    print("启动参数", sys.argv[1])
+    ChatbotBehavior.send(conf.INTERIOR, f"\U0001f4e6 {sys.argv[1] = }")
