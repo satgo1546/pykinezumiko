@@ -1,5 +1,4 @@
 import time
-import pickle
 import requests
 
 from .. import ChatbotBehavior, conf
@@ -24,10 +23,7 @@ class TouchFish(ChatbotBehavior):
     def on_command_touch_fish(self, sender: int) -> None:
         r = requests.get("https://api.vvhan.com/api/moyu?type=json", timeout=3)
         # 请求摸鱼人日历API
-        self.send(
-            sender,
-            f"{r.json()['url']}",
-        )
+        self.send(sender, f"\x9dimage\0file={r.json()['url']}\x9c")
 
     def on_interval(self):
         stp = time.time()
@@ -41,5 +37,5 @@ class TouchFish(ChatbotBehavior):
         if stamp2day(stp, 8) != last and stamp2hour(stp, 8) > 7:
             self.on_command_touch_fish(conf.INTERIOR)
             # 标记当前日期
-            with open(self.path, "wb") as f:
-                pickle.dump(stamp2day(stp, 8), f)
+            with open(self.path, "w") as f:
+                print(stamp2day(stp, 8), file=f)
