@@ -36,21 +36,23 @@ class Commander(ChatbotBehavior):
             ],
             check=True,
         )
-        subprocess.run(
-            ["git", "pull", "--no-rebase", "--no-edit", "origin", "main"], check=True
-        )
+        subprocess.run(["git", "pull", "--no-rebase", "--no-edit"], check=True)
         subprocess.run(["git", "push"])
         # 尝试启动新的版本。
+        print("启动")
         process = subprocess.Popen(
             [sys.executable, "-m", "pykinezumiko", "通过.reload启动"]
         )
         try:
+            print("等待")
             process.wait(5)
         except subprocess.TimeoutExpired:
             # Flask进程启动一段时间内仍在正常运行，表明可以安全地切换到新版。
+            print("结束")
             exit()
         else:
             # 新版存在问题。
+            print("子进程快速终止")
             return f"Flask进程寄啦（{process.returncode}）！请尽快修复后重新执行.reload。"
 
     def on_command_backup(self, context: int):
