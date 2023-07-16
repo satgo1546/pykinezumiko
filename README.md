@@ -48,10 +48,23 @@
     - 烧瓶
     - 枕头
     - 请求书
+    - 四维超立方体
 - G.I.T.（需要恶魔帮助的话）
 
 ```sh
-sudo apt-get install python3-flask python3-pil python3-requests git
+sudo apt-get install python3-flask python3-pil python3-requests python3-tesserocr git
+sudo apt-get install \
+  tesseract-ocr-chi-sim-vert \
+  tesseract-ocr-chi-tra-vert \
+  tesseract-ocr-jpn \
+  tesseract-ocr-jpn-vert \
+  tesseract-ocr-script-hans \
+  tesseract-ocr-script-hans-vert \
+  tesseract-ocr-script-hant \
+  tesseract-ocr-script-hant-vert \
+  tesseract-ocr-script-jpan \
+  tesseract-ocr-script-jpan-vert \
+  tesseract-ocr-script-latn # 语言文件备用，具体要哪些我也不太清楚。硬盘空间大就是阔气
 ```
 
 还需要在conf.py中配置少量紧急情况也需要使用的信息。
