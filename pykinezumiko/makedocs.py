@@ -1,12 +1,18 @@
 import os
+import sys
 import subprocess
 import urllib.request
 import base64
+from typing import Iterable, Generator
 from typing_extensions import Buffer
 import zipfile
-import html
 import tempfile
 import urllib.parse
+import pygments
+import pygments.lexers
+import pygments.formatters
+import pygments.style
+import pygments.token
 
 from . import conf
 
@@ -23,6 +29,26 @@ def font_face(
     font-style: {style};
 }}
 """
+
+
+class HTMLFormatter(pygments.formatters.HtmlFormatter):
+    def __init__(self) -> None:
+        super().__init__(style=conf.PygmentsStyle)
+
+    def wrap(
+        self, source: Iterable[tuple[int, str]]
+    ) -> Generator[tuple[int, str], object, None]:
+        for i, t in source:
+            if i:
+                # it's a line of formatted code
+                t += ""
+            yield i, t
+
+    def get_linenos_style_defs(self) -> list[str]:
+        return []
+
+
+source_formatter = HTMLFormatter()
 
 
 def make() -> None:
@@ -83,6 +109,8 @@ pre {{
     font: inherit;
     white-space: pre-wrap;
 }}
+
+{source_formatter.get_style_defs()}
 </style>
 """
     )
@@ -102,8 +130,12 @@ pre {{
         with open(filename, "r") as f:
             source = f.read()
             characters.update(source)
-            for line in source.rstrip().split("\n"):
-                print(html.escape(line))
+            pygments.highlight(
+                source.rstrip(),
+                pygments.lexers.get_lexer_for_filename(filename),
+                source_formatter,
+                sys.stdout,
+            )
         print(end="</details>")
     print("</pre>")
     print("</main>")
