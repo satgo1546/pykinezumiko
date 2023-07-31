@@ -13,15 +13,20 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
     - uses: actions/checkout@v3
     - uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    - run: pip install flask Pillow requests pdoc typing_extensions && python -m pykinezumiko.conf -o _site
+        cache: 'poetry'
+    - id: cache
+      uses: actions/cache@v3
+      with:
+        path: cache
+        key: '114514'
+    - run: |
+        mkdir -p _site
+        python -m pykinezumiko.makedocs > _site/index.html
     - uses: actions/upload-pages-artifact@v1
       with:
         path: _site/

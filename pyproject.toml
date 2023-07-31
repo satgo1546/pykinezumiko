@@ -1,0 +1,33 @@
+[tool.poetry]
+name = "pykinezumiko"
+version = "0.1.0"
+description = "木鼠子 ⅱ Python Ver."
+authors = ["Frog Chen <satgo1546@yeah.net>"]
+license = "AGPL-3.0-only"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+# 至少3.9条巨蟒
+python = "^3.9"
+# 和它们的
+# 烧瓶
+flask = "^2"
+# 枕头
+Pillow = "^10"
+# 颜料
+Pygments = "^2"
+# 请求书
+requests = "^2"
+# 四维超立方体
+tesserocr = "^2"
+# 我也不知道最低需要哪个版本……
+
+[tool.poetry.group.dev.dependencies]
+typing_extensions = "^4.7"
+fonttools = "^4"
+black = "^23"
+brotli = "^1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -1,9 +1,3 @@
-"""
-.. include:: ../README.md
-
----
-"""
-
 import inspect
 import os
 import re
