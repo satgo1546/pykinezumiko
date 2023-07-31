@@ -24,6 +24,7 @@ jobs:
         path: cache
         key: '114514'
     - run: |
+        pipx install poetry
         mkdir -p _site
         poetry run python -m pykinezumiko.makedocs > _site/index.html
     - uses: actions/upload-pages-artifact@v1
