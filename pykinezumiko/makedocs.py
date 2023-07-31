@@ -43,7 +43,7 @@ def make() -> None:
 <title>pykinezumiko — 木鼠子 ⅱ Python Ver.</title>
 <style>
 body {{
-    font: 14px/28px JetBrainsMono, FandolHei, Courier, sans-serif;
+    font: 14px/28px "JetBrains Mono", FandolHei, Courier, sans-serif;
     color: {conf.THEME[0]};
     background-color: {conf.THEME[2]};
     margin: 8px;
@@ -109,12 +109,18 @@ pre {{
     print("</main>")
     # 从中文字体中去除Latin-1字符集。
     characters.difference_update(chr(i) for i in range(256))
+    # 打印字体声明。
+    # 将字体内联在网页尾部的好处：
+    # • 保持网页为单文件，轻松离线保存。
+    # • 先加载更重要的网页内容，随后再加载字体。
+    # • 尚未加载到@font-face声明时，浏览器认为指定的字体是本地字体。
+    #   没有声明font-display: swap却有着一样的效果。
     print("<style>")
     with zipfile.ZipFile("cache/jb.zip") as z:
         with z.open("fonts/webfonts/JetBrainsMono-Regular.woff2") as f:
-            print(font_face(f.read(), "JetBrainsMono"))
+            print(font_face(f.read(), "JetBrains Mono"))
         with z.open("fonts/webfonts/JetBrainsMono-Bold.woff2") as f:
-            print(font_face(f.read(), "JetBrainsMono", "bold"))
+            print(font_face(f.read(), "JetBrains Mono", "bold"))
     with tempfile.TemporaryDirectory() as tmpdir:
         with open(os.path.join(tmpdir, "text"), "w") as f:
             f.write("".join(characters))
