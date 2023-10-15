@@ -49,21 +49,11 @@ for p in leaf_subclasses(ChatbotBehavior):
 app = Flask(__name__)
 
 
-def simulator_generator():
-    yield """<!DOCTYPE html>
-        <title>好梦在何方</title>
-        <strong>114, 514!</strong>
-    """
-    for i in range(114514):
-        yield f"<p>{i}</p>\n"
-        time.sleep(1)
-
-
 @app.route("/", methods=["GET", "POST"])
 def gocqhttp_event():
     # GET请求来自浏览器。
     if request.method == "GET":
-        return simulator_generator()
+        return "消息处理端已启动。"
 
     # POST请求来自go-cqhttp。
     # 为了原路反馈异常信息，在局部变量中记录消息上下文。
