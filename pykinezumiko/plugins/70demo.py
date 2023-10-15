@@ -4,7 +4,7 @@ import re
 import time
 from collections.abc import Generator
 from typing import Union
-
+from PIL import Image
 from .. import ChatbotBehavior
 
 
@@ -87,5 +87,6 @@ class Demonstration(ChatbotBehavior):
         return f"\x9dface\0id={id}\x9c = {id}"
 
     def on_command_debug_img(self):
+        raise NotImplementedError()
         uri = pathlib.Path("pykinezumiko/resources/sample.png").resolve().as_uri()
         return f"查看下列图片：\x9dimage\0file={uri}\x9c"

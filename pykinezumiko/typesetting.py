@@ -2,6 +2,7 @@ import base64
 import io
 import math
 import re
+import pkgutil
 from functools import cache
 from typing import NamedTuple
 
@@ -12,7 +13,9 @@ from .ponyfill import pairwise
 
 # 虽然函数名叫truetype，但是下层调用的FreeType其实支持许多字体格式。
 # 反倒是用适用于Windows的文泉驿点阵正黑渲染会有错位。
-font = ImageFont.truetype("pykinezumiko/resources/wenquanyi_10pt.pcf", 13)
+font = ImageFont.truetype(
+    pkgutil.get_data(__name__, "resources/wenquanyi_10pt.pcf"), 13
+)
 
 
 class Glue(NamedTuple):

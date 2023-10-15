@@ -1,43 +1,19 @@
-import importlib
+"""主程序。
+
+仅仅是导入这个模块就会启动服务器，所以务必在导入所有需要的插件后再导入这个模块。
+"""
+
 import os
 import sys
 import time
+import errno
 import traceback
-
+from collections import defaultdict
+import http.server
+import werkzeug.serving
 from flask import Flask, request
 
 from . import ChatbotBehavior, conf, docstore
-
-# 从plugins文件夹下加载所有Python模块。
-modules = [
-    importlib.import_module("pykinezumiko.plugins." + name, ".")
-    for name in sorted(
-        entry.name.removesuffix(".py")
-        for entry in os.scandir("pykinezumiko/plugins")
-        if entry.name.endswith(".py")
-        and entry.name.count(".") == 1
-        or entry.is_dir()
-        and "." not in entry.name
-    )
-]
-
-# 为定义了记录类的模块分配文档数据库。
-os.makedirs("excel", exist_ok=True)
-databases = {
-    name: docstore.Database(f"excel/{name}.xlsx", tables)
-    for name, tables in (
-        (
-            module.__name__.rpartition(".")[2],
-            tuple(
-                v
-                for v in module.__dict__.values()
-                if isinstance(v, docstore.Table) and v.__module__ == module.__name__
-            ),
-        )
-        for module in modules
-    )
-    if tables
-}
 
 
 # 虽然只是加载而没有将模块留下，但是其中的类皆已成功定义。
@@ -47,6 +23,15 @@ def leaf_subclasses(cls: type) -> list[type]:
     return [s for c in cls.__subclasses__() for s in leaf_subclasses(c)] or [cls]
 
 
+# 为定义了记录类的模块分配文档数据库。
+os.makedirs("excel", exist_ok=True)
+databases = defaultdict(list)
+for t in leaf_subclasses(docstore.Record):
+    databases[t.__module__].append(t)
+databases = [
+    docstore.Database(f"excel/{name}.xlsx", tuple(tables)) for name, tables in databases.items()
+]
+
 # 实例化找到的插件类。
 plugins: list[ChatbotBehavior] = []
 for p in leaf_subclasses(ChatbotBehavior):
@@ -54,7 +39,7 @@ for p in leaf_subclasses(ChatbotBehavior):
     plugins.append(p())
 
 # 上述过程中易碎的细节：
-# • 加载模块按文件名顺序。
+# • 插件模块相互独立，从而按导入顺序加载。
 # • Python 3.4起，__subclasses__按字典键的顺序返回子类列表。
 # • Python 3.6起，字典按加入顺序迭代键。
 # • Python 3.9起，文档明确指出__subclasses__按子类定义先后顺序返回子类列表。
@@ -94,7 +79,7 @@ def gocqhttp_event():
         # 易碎的细节：all和any短路求值。
         any(p.gocqhttp_event(data) for p in plugins)
         # 在处理完任意事件后自动保存所有已修改的数据库。
-        for database in databases.values():
+        for database in databases:
             if database.dirty:
                 print("写入数据库", database)
                 database.save()
@@ -109,7 +94,48 @@ def gocqhttp_event():
     return ""
 
 
-# 这应当在app启动时执行。但是Flask未提供这个钩子，只好相当随便地塞在这里。
 if len(sys.argv) > 1:
     print("启动参数", sys.argv[1])
     ChatbotBehavior.send(conf.INTERIOR, f"\U0001f4e6 {sys.argv[1] = }")
+
+
+class PerseveringWSGIServer(http.server.ThreadingHTTPServer):
+    """持续不断地尝试监听端口的多线程服务器。
+
+    werkzeug.serving.make_server创建的服务器只是为了打印自定义错误信息
+    “Either identify and stop that program, or start the server with a different …”
+    就把OSError据为己有，所以不得不自己定义一个服务器类来使用。
+    """
+
+    multithread = True
+    multiprocess = False
+
+    def __init__(self, host: str, port: int, app) -> None:
+        handler = werkzeug.serving.WSGIRequestHandler
+        handler.protocol_version = "HTTP/1.1"
+
+        self.host = host
+        self.port = port
+        self.app = app
+        self.address_family = werkzeug.serving.select_address_family(host, port)
+        self.ssl_context = None
+
+        super().__init__(
+            werkzeug.serving.get_sockaddr(host, port, self.address_family),  # type: ignore[arg-type]
+            handler,
+            bind_and_activate=False,
+        )
+        while True:
+            try:
+                self.server_bind()
+                self.server_activate()
+                break
+            except OSError as e:
+                if e.errno == errno.EADDRINUSE:
+                    print("端口被占用，将重试")
+                    time.sleep(1)
+                else:
+                    raise
+
+
+PerseveringWSGIServer("127.0.0.1", 5701, app).serve_forever()
