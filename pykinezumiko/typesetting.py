@@ -4,12 +4,12 @@ import math
 import re
 import pkgutil
 from functools import cache
+from itertools import pairwise
 from typing import NamedTuple
 
 from PIL import Image, ImageDraw, ImageFont
 
 from . import conf
-from .ponyfill import pairwise
 
 # 虽然函数名叫truetype，但是下层调用的FreeType其实支持许多字体格式。
 # 反倒是用适用于Windows的文泉驿点阵正黑渲染会有错位。

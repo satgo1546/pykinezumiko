@@ -5,13 +5,13 @@ import time
 from typing import Union
 import zlib
 from io import BytesIO
+from bisect import bisect_right
 
 import requests
 from PIL import Image
 import numpy as np
 
 from .. import ChatbotBehavior, conf, docstore
-from ..ponyfill import bisect_right
 
 github_token = "ghp_1145141919810HengHengAaaaaaaaaaaargh"
 

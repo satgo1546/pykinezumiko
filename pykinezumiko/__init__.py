@@ -2,6 +2,7 @@ import inspect
 import os
 import re
 import time
+from bisect import bisect_left
 from collections import OrderedDict
 from collections.abc import Generator
 from typing import Any, Callable, ClassVar, NoReturn, Optional, TypeVar, Union, overload
@@ -9,7 +10,6 @@ from typing import Any, Callable, ClassVar, NoReturn, Optional, TypeVar, Union, 
 import requests
 
 from . import humanity
-from .ponyfill import bisect_left
 
 CallableT = TypeVar("CallableT", bound=Callable)
 

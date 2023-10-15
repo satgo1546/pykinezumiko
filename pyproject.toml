@@ -7,11 +7,11 @@ license = "AGPL-3.0-only"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-# 至少3.9条巨蟒
-python = "^3.9"
+# 至少3.11条巨蟒
+python = "^3.11"
 # 和它们的
 # 烧瓶
-flask = "^2"
+flask = "^3"
 # 枕头
 Pillow = "^10"
 # 颜料
