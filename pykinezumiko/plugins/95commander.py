@@ -37,7 +37,7 @@ class Commander(ChatbotBehavior):
             check=True,
         )
         subprocess.run(["git", "pull", "--no-rebase", "--no-edit"], check=True)
-        subprocess.run(["git", "push"])
+        subprocess.run(["git", "push"], check=True)
         # 尝试启动新的版本。
         print("启动")
         process = subprocess.Popen(

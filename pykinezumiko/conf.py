@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """存储到处都要使用的全局配置。"""
 
 INTERIOR = -114514
