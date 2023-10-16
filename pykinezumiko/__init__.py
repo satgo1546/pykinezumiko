@@ -14,7 +14,7 @@ from . import humanity
 CallableT = TypeVar("CallableT", bound=Callable)
 
 
-class ChatbotBehavior:
+class Plugin:
     """所有插件的基类。
 
     继承此类且没有子类的类将自动被视为插件而实例化。
@@ -202,7 +202,7 @@ class ChatbotBehavior:
         context = -int(data["group_id"]) if "group_id" in data else sender
         return context, sender
 
-    def gocqhttp_event(self, data: dict[str, Any]) -> bool:
+    def on_event(self, data: dict[str, Any]) -> bool:
         """接收事件并调用对应的事件处理方法。
 
         :param data: 来自go-cqhttp的上报数据。
@@ -260,7 +260,7 @@ class ChatbotBehavior:
             result = self.on_interval()
         # 其余所有事件都是通知上报。
         elif data["notice_type"] in ("friend_recall", "group_recall"):
-            message = ChatbotBehavior.gocqhttp("get_msg", message_id=data["message_id"])
+            message = Plugin.gocqhttp("get_msg", message_id=data["message_id"])
             message = str(message["raw_message"]) if "raw_message" in message else ""
             result = self.on_message_deleted(
                 context, sender, message, data["message_id"]
@@ -274,7 +274,7 @@ class ChatbotBehavior:
                 data["file"]["url"],
             )
         elif data["notice_type"] == "group_upload":
-            url = ChatbotBehavior.gocqhttp(
+            url = Plugin.gocqhttp(
                 "get_group_file_url",
                 group_id=-context,
                 file_id=data["file"]["id"],
@@ -400,13 +400,13 @@ class ChatbotBehavior:
 
         要添加到总目录.help中：
 
-            @ChatbotBehavior.documented()
+            @Plugin.documented()
             def on_command_foo(self):
                 ...
 
         要作为子命令添加到某一其他命令的帮助中：
 
-            @ChatbotBehavior.documented(on_command_foo)
+            @Plugin.documented(on_command_foo)
             def on_command_foo_bar(self):
                 ...
         """
@@ -432,7 +432,7 @@ class ChatbotBehavior:
     def on_message(self, context: int, sender: int, text: str, message_id: int):
         """当收到消息时执行此函数。
 
-        如果不知道参数和返回值的含义的话，请看ChatbotBehavior类的说明。
+        如果不知道参数和返回值的含义的话，请看Plugin类的说明。
 
         因为on_message事件太常用了，扩展了以下方便用法。
 
@@ -474,10 +474,10 @@ class ChatbotBehavior:
         """
 
 
-class NameCacheUpdater(ChatbotBehavior):
-    """与ChatbotBehavior基类联合工作的必备插件。"""
+class NameCacheUpdater(Plugin):
+    """与Plugin基类联合工作的必备插件。"""
 
-    def gocqhttp_event(self, data: dict[str, Any]) -> bool:
+    def on_event(self, data: dict[str, Any]) -> bool:
         # 如果有详细的发送者信息，更新名称缓存。
         context, sender = self.context_sender_from_gocqhttp_event(data)
         if "sender" in data:
@@ -487,15 +487,15 @@ class NameCacheUpdater(ChatbotBehavior):
         return False
 
 
-class Logger(ChatbotBehavior):
+class Logger(Plugin):
     """调试用，在控制台中输出消息的内部表示。"""
 
     def on_message(self, context: int, sender: int, text: str, message_id: int):
         print(context, sender, repr(text), message_id)
 
 
-class HelpProvider(ChatbotBehavior):
-    """提供.help命令的插件。@ChatbotBehavior.documented默认将帮助信息置于此处。"""
+class HelpProvider(Plugin):
+    """提供.help命令的插件。@Plugin.documented默认将帮助信息置于此处。"""
 
     def on_command_help(self, _: Never):
         pass

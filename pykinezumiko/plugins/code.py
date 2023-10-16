@@ -1,6 +1,6 @@
 import re
 import requests
-from .. import ChatbotBehavior
+from .. import Plugin
 
 
 def decbv(bv: str) -> int:
@@ -33,7 +33,7 @@ def encav(avid: int) -> str:
     return "".join(bv)
 
 
-class Code(ChatbotBehavior):
+class Code(Plugin):
     def on_message(self, context: int, sender: int, text: str, message_id: int):
         if re.search(r"bilibili\.com\/video\/BV|BV1..4.1.7..|\bb23\.tv\b", text):
             return self.av_bv(text)
@@ -70,7 +70,7 @@ class Code(ChatbotBehavior):
             )
             return r
 
-    @ChatbotBehavior.documented()
+    @Plugin.documented()
     # 由于on_command_u+不是合法的标识符名称，只能先定义一个别名，然后在类定义完全后setattr。
     def on_command_unicode(self, s: str):
         """.u+ ⟨210F|ℏ⟩（Unicode 码位）"""
@@ -129,7 +129,7 @@ class Code(ChatbotBehavior):
         MORSE_DOTS + MORSE_DASHES, "." * len(MORSE_DOTS) + "-" * len(MORSE_DASHES)
     )
 
-    @ChatbotBehavior.documented()
+    @Plugin.documented()
     def on_command_morse(self, s: str):
         """.morse ⟨·–|A⟩（摩尔斯电码）"""
 

@@ -13,11 +13,11 @@ import http.server
 import werkzeug.serving
 from flask import Flask, request
 
-from . import ChatbotBehavior, conf, docstore
+from . import Plugin, conf, docstore
 
 
 # 虽然只是加载而没有将模块留下，但是其中的类皆已成功定义。
-# 靠深度优先搜索找出所有继承了ChatbotBehavior但没有子类的类，它们是要实例化的插件类。
+# 靠深度优先搜索找出所有继承了Plugin但没有子类的类，它们是要实例化的插件类。
 def leaf_subclasses(cls: type) -> list[type]:
     """找出指定类的所有叶子类。使用类上的__subclasses__函数。"""
     return [s for c in cls.__subclasses__() for s in leaf_subclasses(c)] or [cls]
@@ -33,8 +33,8 @@ databases = [
 ]
 
 # 实例化找到的插件类。
-plugins: list[ChatbotBehavior] = []
-for p in leaf_subclasses(ChatbotBehavior):
+plugins: list[Plugin] = []
+for p in leaf_subclasses(Plugin):
     print("加载插件类", p.__name__)
     plugins.append(p())
 
@@ -50,7 +50,7 @@ app = Flask(__name__)
 
 
 @app.route("/", methods=["GET", "POST"])
-def gocqhttp_event():
+def root():
     # GET请求来自浏览器。
     if request.method == "GET":
         return "消息处理端已启动。"
@@ -65,9 +65,9 @@ def gocqhttp_event():
         # 其实是data为None不可能的！在此之前就已经抛出异常挂掉了。
         # 为了类型检查通过不得已而检查一下罢了。
         assert data is not None
-        context, _ = ChatbotBehavior.context_sender_from_gocqhttp_event(data)
+        context, _ = Plugin.context_sender_from_gocqhttp_event(data)
         # 易碎的细节：all和any短路求值。
-        any(p.gocqhttp_event(data) for p in plugins)
+        any(p.on_event(data) for p in plugins)
         # 在处理完任意事件后自动保存所有已修改的数据库。
         for database in databases:
             if database.dirty:
@@ -78,15 +78,15 @@ def gocqhttp_event():
         # 通常的Flask应用中，只需再行抛出。但是，因为使用了自定义的服务器类，这么做会导致进程终止。
         traceback.print_exc()
         if context:
-            ChatbotBehavior.send(context, f"\u267b\ufe0f {e!r}")
+            Plugin.send(context, f"\u267b\ufe0f {e!r}")
         else:
-            ChatbotBehavior.send(conf.INTERIOR, f"\u267b\ufe0f 处理无来源事件时发生了下列异常：{e!r}")
+            Plugin.send(conf.BACKSTAGE, f"\u267b\ufe0f 处理无来源事件时发生了下列异常：{e!r}")
     return ""
 
 
 if len(sys.argv) > 1:
     print("启动参数", sys.argv[1])
-    ChatbotBehavior.send(conf.INTERIOR, f"\U0001f4e6 {sys.argv[1] = }")
+    Plugin.send(conf.BACKSTAGE, f"\U0001f4e6 {sys.argv[1] = }")
 
 
 class PerseveringWSGIServer(http.server.ThreadingHTTPServer):

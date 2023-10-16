@@ -65,11 +65,11 @@ pykinezumiko没有所谓的配置文件，所有配置都基于入口程序充�
 # conf模块中的配置项可在导入后修改。
 import pykinezumiko.conf
 # 少量紧急情况也需要使用的信息必须正确配置。
-pykinezumiko.conf.INTERIOR = -979976910
+pykinezumiko.conf.BACKSTAGE = -979976910
 
 # 导入即注册。通过导入顺序决定插件加载顺序。
 # 下面加载了部分示例插件。
-# 除了阅读ChatbotBehavior类的文档，不要忘了可以跟随典例从实践中学习插件的制作方法。
+# 除了阅读Plugin类的文档，不要忘了可以跟随典例从实践中学习插件的制作方法。
 import pykinezumiko.plugins.demo
 import pykinezumiko.plugins.jrrp
 

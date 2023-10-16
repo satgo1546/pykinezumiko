@@ -7,11 +7,11 @@ import time
 
 import requests
 
-from .. import ChatbotBehavior, conf
+from .. import Plugin, conf
 from ..humanity import format_timespan
 
 
-class Commander(ChatbotBehavior):
+class Commander(Plugin):
     """提供管理与调试功能的插件。
 
     如此命名的原因是早期的命令式文件管理器的名字中常常带有“commander”一词。
@@ -70,7 +70,7 @@ class Commander(ChatbotBehavior):
         ret.append(f"消息发送者 = {self.name(sender)}")
         ret.append(f"消息上下文 ID = {context}")
         ret.append(f"消息上下文 = {self.name(context)}")
-        if context == conf.INTERIOR:
+        if context == conf.BACKSTAGE:
             ret.append("消息来自管理用群。")
         ret.append("现在 = " + time.strftime("%-Y 年 %-m 月 %-d 日 %H:%M %Z"))
         ret.append(f"所在 = {os.getcwd()}")

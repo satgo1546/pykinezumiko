@@ -3,10 +3,10 @@ import os
 import time
 import pickle
 from queue import PriorityQueue
-from .. import ChatbotBehavior
+from .. import Plugin
 
 
-class Clock(ChatbotBehavior):
+class Clock(Plugin):
     def __init__(self) -> None:
         super().__init__()
         # 存储路径
