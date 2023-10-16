@@ -3,10 +3,10 @@ import os
 import time
 import pickle
 from queue import PriorityQueue
-from .. import Plugin
+import pykinezumiko
 
 
-class Clock(Plugin):
+class Clock(pykinezumiko.Plugin):
     def __init__(self) -> None:
         super().__init__()
         # 存储路径

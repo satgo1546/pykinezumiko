@@ -5,14 +5,14 @@ import time
 from collections.abc import Generator
 from typing import Union
 from PIL import Image
-from .. import Plugin, docstore
+import pykinezumiko
 
 
-class 一条数据(docstore.Record):
+class 一条数据(pykinezumiko.docstore.Record):
     text: str
 
 
-class Demonstration(Plugin):
+class Demonstration(pykinezumiko.Plugin):
     """演示各种功能的插件。"""
 
     # 等到Python 3.12有@override了，建议在这里标一下。
@@ -37,7 +37,7 @@ class Demonstration(Plugin):
         time.sleep(8)
         return "被回调。"
 
-    @Plugin.documented()
+    @pykinezumiko.documented()
     def on_command_猜数字(self) -> Generator[str, str, Union[None, bool, str]]:
         # 注意观察下列代码与控制台程序有多么相像。
         def number_guessing_in_console() -> None:

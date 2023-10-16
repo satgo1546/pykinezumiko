@@ -1,7 +1,7 @@
 import time
 import requests
 
-from .. import Plugin, conf
+import pykinezumiko
 
 
 def stamp2day(stamp: float, time_zone: int) -> int:
@@ -12,7 +12,7 @@ def stamp2hour(stamp: float, time_zone: int) -> int:
     return int(stamp // 3600 + time_zone) % 24
 
 
-class TouchFish(Plugin):
+class TouchFish(pykinezumiko.Plugin):
     """定时发摸鱼人日历"""
 
     def __init__(self) -> None:
@@ -38,4 +38,4 @@ class TouchFish(Plugin):
             # 标记当前日期
             with open(self.path, "w") as f:
                 print(stamp2day(stp, 8), file=f)
-            self.on_command_touch_fish(conf.BACKSTAGE)
+            self.on_command_touch_fish(pykinezumiko.conf.BACKSTAGE)

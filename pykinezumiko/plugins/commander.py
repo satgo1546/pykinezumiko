@@ -6,12 +6,11 @@ import tempfile
 import time
 
 import requests
+import pykinezumiko
+from pykinezumiko.humanity import format_timespan
 
-from .. import Plugin, conf
-from ..humanity import format_timespan
 
-
-class Commander(Plugin):
+class Commander(pykinezumiko.Plugin):
     """提供管理与调试功能的插件。
 
     如此命名的原因是早期的命令式文件管理器的名字中常常带有“commander”一词。
@@ -70,7 +69,7 @@ class Commander(Plugin):
         ret.append(f"消息发送者 = {self.name(sender)}")
         ret.append(f"消息上下文 ID = {context}")
         ret.append(f"消息上下文 = {self.name(context)}")
-        if context == conf.BACKSTAGE:
+        if context == pykinezumiko.conf.BACKSTAGE:
             ret.append("消息来自管理用群。")
         ret.append("现在 = " + time.strftime("%-Y 年 %-m 月 %-d 日 %H:%M %Z"))
         ret.append(f"所在 = {os.getcwd()}")
@@ -118,7 +117,7 @@ class Commander(Plugin):
             os.rename(new_name, old_name)
             with open(new_name, "wb") as f:
                 f.write(requests.get(url).content)
-            from .. import app
+            from pykinezumiko import app
 
             app.databases[name].reload()
             return f"替换了 {new_name}；原始文件被重命名为 {old_name}。"

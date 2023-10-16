@@ -2,8 +2,7 @@ import re
 import json
 
 import requests
-
-from .. import Plugin
+import pykinezumiko
 
 apiKey = "1145141919810HENGHENGAAAAAAAAAAAAAAPIKEY"
 
@@ -49,7 +48,7 @@ def search(imageURL: str, num: int = 1) -> str:
     print(f"返回值 {ret!r}")
     return ret
 
-class SauceNAO(Plugin):
+class SauceNAO(pykinezumiko.Plugin):
     """以图搜图。
 
     其实只是调用API的产物。

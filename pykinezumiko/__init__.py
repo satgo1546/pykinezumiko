@@ -9,7 +9,8 @@ from typing import Any, Callable, ClassVar, Never, Optional, TypeVar, Union, ove
 
 import requests
 
-from . import humanity
+# 即使没有在本文件中用到，也要保留这些子模块的重新导出，以便在import pykinezumiko时就导入子模块。
+from . import humanity, conf, docstore
 
 CallableT = TypeVar("CallableT", bound=Callable)
 
@@ -392,43 +393,6 @@ class Plugin:
             parts.pop()
         return self.on_message(context, sender, text, message_id)
 
-    @staticmethod
-    def documented(
-        under: Optional[Callable] = None,
-    ) -> Callable[[CallableT], CallableT]:
-        """使用此装饰器添加单条命令帮助的第一行到帮助索引命令中。
-
-        要添加到总目录.help中：
-
-            @Plugin.documented()
-            def on_command_foo(self):
-                ...
-
-        要作为子命令添加到某一其他命令的帮助中：
-
-            @Plugin.documented(on_command_foo)
-            def on_command_foo_bar(self):
-                ...
-        """
-        if under is None:
-            under = HelpProvider.on_command_help
-
-        def decorator(f: CallableT) -> CallableT:
-            under.__doc__ = (
-                (inspect.getdoc(under) or "")
-                + "\n‣ "
-                + (
-                    f.__doc__
-                    or humanity.command_prefix[0]
-                    + f.__name__.removeprefix("on_command_")
-                )
-                .partition("\n")[0]
-                .strip()
-            )
-            return f
-
-        return decorator
-
     def on_message(self, context: int, sender: int, text: str, message_id: int):
         """当收到消息时执行此函数。
 
@@ -499,3 +463,37 @@ class HelpProvider(Plugin):
 
     def on_command_help(self, _: Never):
         pass
+
+
+def documented(
+    under: Optional[Callable] = HelpProvider.on_command_help,
+) -> Callable[[CallableT], CallableT]:
+    """使用此装饰器添加单条命令帮助的第一行到帮助索引命令中。
+
+    要添加到总目录.help中：
+
+        @pykinezumiko.documented()
+        def on_command_foo(self):
+            ...
+
+    要作为子命令添加到某一其他命令的帮助中：
+
+        @pykinezumiko.documented(on_command_foo)
+        def on_command_foo_bar(self):
+            ...
+    """
+
+    def decorator(f: CallableT) -> CallableT:
+        under.__doc__ = (
+            (inspect.getdoc(under) or "")
+            + "\n‣ "
+            + (
+                f.__doc__
+                or humanity.command_prefix[0] + f.__name__.removeprefix("on_command_")
+            )
+            .partition("\n")[0]
+            .strip()
+        )
+        return f
+
+    return decorator
