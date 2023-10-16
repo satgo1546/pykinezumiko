@@ -2,16 +2,16 @@
 
 ```
          _,met$$$$$gg.           pi@raspberrypi
-      ,g$$$$$$$$$$$$$$$P.        OS: Debian 11 bullseye
-    ,g$$P""       """Y$$.".      Kernel: aarch64 Linux 5.15.61-v8+
-   ,$$P'              `$$$.      Uptime: 6d 12h 2m
-  ',$$P       ,ggs.     `$$b:    Packages: 597
-  `d$$'     ,$P"'   .    $$$     Shell: bash 5.1.4
-   $$P      d$'     ,    $$P     Resolution: No X Server
-   $$:      $$.   -    ,d$$'     WM: Not Found
-   $$\;      Y$b._   _,d$P'      Disk: 1.9G / 30G (7%)
-   Y$$.    `.`"Y$$$$P"'          CPU: BCM2835 @ 4x 1.8GHz
-   `$$b      "-.__               RAM: 251MiB / 7812MiB
+      ,g$$$$$$$$$$$$$$$P.        OS: Debian 12 bookworm
+    ,g$$P""       """Y$$.".      Kernel: aarch64 Linux 6.1.0-rpi4-rpi-v8
+   ,$$P'              `$$$.      Uptime: 20h 55m
+  ',$$P       ,ggs.     `$$b:    Packages: 615
+  `d$$'     ,$P"'   .    $$$     Shell: bash 5.2.15
+   $$P      d$'     ,    $$P     Disk: 3.0G / 30G (11%)
+   $$:      $$.   -    ,d$$'     CPU: BCM2835 @ 4x 1.8GHz
+   $$\;      Y$b._   _,d$P'      RAM: 272MiB / 7811MiB
+   Y$$.    `.`"Y$$$$P"'
+   `$$b      "-.__
     `Y$$
      `Y$$.
        `$$b.
@@ -20,43 +20,83 @@
                 `""""
 ```
 
-这里是今天也在树莓派4B上被修出新bug的骰娘木鼠子。
+这里是今天也在树莓派4B上被修出新bug的骰娘<ruby>木鼠子<rp>（</rp><rt>きねずみこ</rt><rp>）</rp></ruby>。
+
+木鼠子是基于pykinezumiko制作的骰娘，未公开。不过，要是找到了木鼠子的话，就跟木鼠子加个好友吧。
 
 ## 技术信息
 
-架构仍是经典的双端分离：go-cqhttp负责假装自己是QQ，Flask + requests这边负责消息的实际处理。这回因为是CQHTTP，所以两边用HTTP和JSON通信。具体来说，就是像下面这样。
+pykinezumiko是[OneBot](https://onebot.dev/) SDK。它和[NoneBot](https://nonebot.dev/)等框架有着类似的作用，只是设计毫无保留地偏向开发的快乐。
 
-```
-┌────────────────────────┐POST ┌────────────────────────┐
-│ go-cqhttp              ├────►│ Flask                  │
-│ http://localhost:5700/ │◄────┤ http://localhost:5701/ │
-└────────────────────────┘ POST└────────────────────────┘
-```
-
-端口号是go-cqhttp自动生成的配置文件中的默认值，现在写死了，改的话要改好几个地方。go-cqhttp收到消息时，会发送请求给Flask端。Flask端想要发出消息时，会调用requests库向go-cqhttp发出请求。这是标准的go-cqhttp通信流程。
-
-要部署的话，首先要获取[go-cqhttp](https://docs.go-cqhttp.org/)的二进制发行版，放在任意位置运行，在生成配置文件时选择使用HTTP通信。在配置中请确认下列信息：
+要部署的话，首先要获取[go-cqhttp](https://docs.go-cqhttp.org/)（唯一经过测试的OneBot实现）的二进制发行版，放在任意位置运行，在生成配置文件时选择使用HTTP通信。在配置中请确认下列信息：
 
 - 账号和密码
 - 心跳间隔置为数秒～一分钟（被当作方便的定时器来用了）
 - 数据库处于启用状态（这应该是默认值）
+- 正向HTTP监听5700端口
 - 反向HTTP POST列表中包含`http://127.0.0.1:5701/`一项（这应该是一条模板配置，解除注释即可）
 
-额外需要的材料列表以[诗歌](pyproject.toml)形式提供。
+额外需要的材料列表以[诗歌](pyproject.toml)形式提供，因此不必手动安装，可交由pip处理。因为使用了发行版往往不提供的库，不推荐全局安装，请使用喜爱的方式创建虚拟环境后执行`pip install pykinezumiko`。
+
+<details>
+<summary>使用开发分支</summary>
 
 ```sh
-poetry install
+pip install --upgrade --editable git+https://github.com/satgo1546/pykinezumiko.git#egg=pykinezumiko
 ```
 
-还需要在conf.py中配置少量紧急情况也需要使用的信息。
+在requirements.txt中的写法：
 
-运行方法是在两个窗口分别启动go-cqhttp（`./go-cqhttp`）和消息处理端（`python -m pykinezumiko`）。使用Raspbian自带的Python即可，无需创建虚拟环境等。因为重启go-cqhttp需要重新发送登录信息，甚至重新扫码（`session.token`失效的场合），所以尽量少重启go-cqhttp。
+```
+-e git+https://github.com/satgo1546/pykinezumiko.git#egg=pykinezumiko
+```
+
+</details>
+
+pykinezumiko没有所谓的配置文件，所有配置都基于入口程序充满副作用的导入。某种意义上，pykinezumiko是个库；副作用却无情地将事实扭曲成别样。
+
+```python
+#!/usr/bin/env python3
+"""消息处理端的入口。
+
+请将本脚本保存为main.py。
+"""
+
+# conf模块中的配置项可在导入后修改。
+import pykinezumiko.conf
+# 少量紧急情况也需要使用的信息必须正确配置。
+pykinezumiko.conf.INTERIOR = -979976910
+
+# 导入即注册。通过导入顺序决定插件加载顺序。
+# 下面加载了部分示例插件。
+# 除了阅读ChatbotBehavior类的文档，不要忘了可以跟随典例从实践中学习插件的制作方法。
+import pykinezumiko.plugins.demo
+import pykinezumiko.plugins.jrrp
+
+# 在此加载自定义插件、当场创建插件，或者像下述这样，从指定文件夹下加载所有模块。
+# 因为会按文件名顺序加载，所以可在文件名开头标注数字以指定插件加载顺序。
+import os, importlib
+for name in sorted(
+    entry.name.removesuffix(".py")
+    for entry in os.scandir("plugins")
+    if entry.name.endswith(".py")
+    and entry.name.count(".") == 1
+    or entry.is_dir()
+    and "." not in entry.name
+):
+    importlib.import_module("plugins." + name, ".")
+
+# 导入app时就会启动服务循环。
+import pykinezumiko.app
+```
+
+运行方法是在两个窗口分别启动go-cqhttp（`./go-cqhttp`）和消息处理端（`python main.py`）。
+
+因为重启go-cqhttp需要重新发送登录信息，甚至重新扫码（`session.token`失效的场合），所以尽量少重启go-cqhttp。
 
 消息处理端服务器启动时不断尝试监听目标端口，因此可以同时打开两个消息处理程序，甲成功监听的话，乙就会因端口被占用而被挡在门外。甲挂掉后，乙自然接管。这便是自我更新的原理：执行git pull之后，启动新的消息处理程序，再退出自己。
 
 > 木鼠子——在生产环境使用调试模式实现重要特性的先驱者
-
-这次采用了模块化的结构，插件直接放置在pykinezumiko/plugins文件夹下。除了阅读ChatbotBehavior类的文档，还可以跟随典例从实践中学习插件的制作方法。
 
 ## 以下功能在梦里有
 
