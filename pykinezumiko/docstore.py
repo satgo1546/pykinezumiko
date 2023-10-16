@@ -7,16 +7,7 @@ import time
 from collections.abc import KeysView, ValuesView, ItemsView
 from itertools import count, takewhile
 import typing
-from typing import Any, Generator, Iterable, Protocol, TypeVar
-
-try:
-    from typing_extensions import dataclass_transform
-except (ModuleNotFoundError, ImportError):
-    if typing.TYPE_CHECKING:
-        raise
-    else:
-        dataclass_transform = lambda **kwargs: lambda x: x
-
+from typing import Any, Generator, Iterable, Protocol, TypeVar, dataclass_transform
 from . import xlsx
 
 T = TypeVar("T")

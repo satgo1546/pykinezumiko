@@ -5,7 +5,7 @@ import time
 from bisect import bisect_left
 from collections import OrderedDict
 from collections.abc import Generator
-from typing import Any, Callable, ClassVar, NoReturn, Optional, TypeVar, Union, overload
+from typing import Any, Callable, ClassVar, Never, Optional, TypeVar, Union, overload
 
 import requests
 
@@ -497,5 +497,5 @@ class Logger(ChatbotBehavior):
 class HelpProvider(ChatbotBehavior):
     """提供.help命令的插件。@ChatbotBehavior.documented默认将帮助信息置于此处。"""
 
-    def on_command_help(self, _: NoReturn):
+    def on_command_help(self, _: Never):
         pass

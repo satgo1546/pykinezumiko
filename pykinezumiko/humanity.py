@@ -2,7 +2,7 @@ import re
 import typing
 import unicodedata
 from itertools import filterfalse, groupby
-from typing import Any, NoReturn, Optional, SupportsInt, Union
+from typing import Any, NoReturn, Never, Optional, SupportsInt, Union
 
 
 def format_timespan(seconds: SupportsInt) -> str:
@@ -164,7 +164,8 @@ def parse_command(
             if typing.get_origin(parameter) is Union
             else (parameter,)
         ):
-            if parameter is NoReturn:
+            # NoReturn is not Never，什么鬼？
+            if parameter is NoReturn or parameter is Never:
                 match = None
             elif parameter is None or parameter is type(None):
                 # 以Optional[int]（= Union[int, None]）为例。
