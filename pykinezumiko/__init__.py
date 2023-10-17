@@ -5,7 +5,7 @@ import time
 from bisect import bisect_left
 from collections import OrderedDict
 from collections.abc import Generator
-from typing import Any, Callable, ClassVar, Never, Optional, TypeVar, Union, overload
+from typing import Any, Callable, ClassVar, Never, TypeVar, overload
 
 import requests
 
@@ -34,7 +34,7 @@ class Plugin:
     返回None的场合，表示插件无法处理这个事件。该事件会轮替给下一个插件来处理。
     """
 
-    _name_cache: ClassVar[dict[Union[int, tuple[int, int]], str]] = {}
+    _name_cache: ClassVar[dict[int | tuple[int, int], str]] = {}
     """在name方法内部使用的名称缓存。若想在对话中包含某人的名称，请使用name方法。
 
     从context到好友名或群聊名的映射，以及从(context, sender)到群名片的映射。
@@ -42,7 +42,7 @@ class Plugin:
 
     def __init__(self) -> None:
         self.flows: OrderedDict[
-            tuple[int, int], tuple[float, Generator[object, Optional[str], object]]
+            tuple[int, int], tuple[float, Generator[object, str | None, object]]
         ] = OrderedDict()
         """尚在进行的对话流程。
 
@@ -178,7 +178,7 @@ class Plugin:
         )
 
     @classmethod
-    def send_file(cls, context: int, filename: str, name: Optional[str] = None) -> None:
+    def send_file(cls, context: int, filename: str, name: str | None = None) -> None:
         """发送文件。
 
         :param context: 发送目标。
@@ -423,7 +423,7 @@ class Plugin:
     def on_file(self, context: int, sender: int, filename: str, size: int, url: str):
         """接收到离线文件或群有新文件。"""
 
-    def on_admission(self, context: int, sender: int, text: str) -> Optional[bool]:
+    def on_admission(self, context: int, sender: int, text: str) -> bool | None:
         """收到了添加好友的请求或加入群聊的请求。
 
         返回True接受，False拒绝，None无视并留给下一个插件处理。
@@ -466,7 +466,7 @@ class HelpProvider(Plugin):
 
 
 def documented(
-    under: Optional[Callable] = HelpProvider.on_command_help,
+    under: Callable | None = HelpProvider.on_command_help,
 ) -> Callable[[CallableT], CallableT]:
     """使用此装饰器添加单条命令帮助的第一行到帮助索引命令中。
 

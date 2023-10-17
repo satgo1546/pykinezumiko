@@ -2,7 +2,8 @@ import re
 import typing
 import unicodedata
 from itertools import filterfalse, groupby
-from typing import Any, NoReturn, Never, Optional, SupportsInt, Union
+from typing import Any, NoReturn, Never, SupportsInt, Union
+from types import UnionType
 
 
 def format_timespan(seconds: SupportsInt) -> str:
@@ -52,7 +53,7 @@ def parse_number(s: str, default=0) -> float:
         return 0.0
 
 
-def to_number(s: str) -> Union[int, float]:
+def to_number(s: str) -> int | float:
     """将字符串转换成整数或浮点数。"""
     try:
         return int(s)
@@ -122,7 +123,7 @@ def tokenize_command_name(text: str) -> list[str]:
     )
 
 
-def match_start_or_end(pattern: str, text: str, flags=0) -> Optional[re.Match[str]]:
+def match_start_or_end(pattern: str, text: str, flags=0) -> re.Match[str] | None:
     return re.match(pattern, text, flags) or re.search(rf"(?:{pattern})\Z", text, flags)
 
 
@@ -161,7 +162,7 @@ def parse_command(
         # 根据参数类型匹配字符串。
         for parameter in (
             typing.get_args(parameter)
-            if typing.get_origin(parameter) is Union
+            if typing.get_origin(parameter) in (Union, UnionType)
             else (parameter,)
         ):
             # NoReturn is not Never，什么鬼？

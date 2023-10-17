@@ -38,7 +38,7 @@ class Demonstration(pykinezumiko.Plugin):
         return "被回调。"
 
     @pykinezumiko.documented()
-    def on_command_猜数字(self) -> Generator[str, str, Union[None, bool, str]]:
+    def on_command_猜数字(self) -> Generator[str, str, None | bool | str]:
         # 注意观察下列代码与控制台程序有多么相像。
         def number_guessing_in_console() -> None:
             x = random.randint(1, 100)
