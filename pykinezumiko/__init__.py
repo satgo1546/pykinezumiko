@@ -196,20 +196,12 @@ class Plugin:
                 "upload_group_file", group_id=-context, file=filename, name=name
             )
 
-    @staticmethod
-    def context_sender_from_gocqhttp_event(data: dict[str, Any]) -> tuple[int, int]:
-        """从go-cqhttp的事件数据中提取(context, sender)元组。"""
-        sender = int(data["user_id"]) if "user_id" in data else 0
-        context = -int(data["group_id"]) if "group_id" in data else sender
-        return context, sender
-
-    def on_event(self, data: dict[str, Any]) -> bool:
+    def on_event(self, context: int, sender: int, data: dict[str, Any]) -> bool:
         """接收事件并调用对应的事件处理方法。
 
         :param data: 来自go-cqhttp的上报数据。
         :returns: True表示事件已受理，不应再交给其他插件；False表示应继续由其他插件处理本事件。
         """
-        context, sender = self.context_sender_from_gocqhttp_event(data)
         result: object = None
         # https://docs.go-cqhttp.org/event/
         if data["post_type"] == "message":
@@ -441,9 +433,8 @@ class Plugin:
 class NameCacheUpdater(Plugin):
     """与Plugin基类联合工作的必备插件。"""
 
-    def on_event(self, data: dict[str, Any]) -> bool:
+    def on_event(self, context: int, sender: int, data: dict[str, Any]) -> bool:
         # 如果有详细的发送者信息，更新名称缓存。
-        context, sender = self.context_sender_from_gocqhttp_event(data)
         if "sender" in data:
             nickname = data["sender"].get("nickname", "")
             self._name_cache[sender] = self._name_cache[sender, sender] = nickname

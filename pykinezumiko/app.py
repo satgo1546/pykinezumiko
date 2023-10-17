@@ -65,9 +65,11 @@ def root():
         # 其实是data为None不可能的！在此之前就已经抛出异常挂掉了。
         # 为了类型检查通过不得已而检查一下罢了。
         assert data is not None
-        context, _ = Plugin.context_sender_from_gocqhttp_event(data)
+        # 从go-cqhttp的事件数据中提取context和sender。
+        sender = int(data.get("user_id", 0))
+        context = -int(data["group_id"]) if "group_id" in data else sender
         # 易碎的细节：all和any短路求值。
-        any(p.on_event(data) for p in plugins)
+        any(p.on_event(context, sender, data) for p in plugins)
         # 在处理完任意事件后自动保存所有已修改的数据库。
         for database in databases:
             if database.dirty:
