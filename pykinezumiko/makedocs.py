@@ -3,11 +3,11 @@ import sys
 import subprocess
 import urllib.request
 import base64
-from typing import Iterable, Generator
 from typing_extensions import Buffer
 import zipfile
 import tempfile
 import urllib.parse
+import mistletoe
 import pygments
 import pygments.lexers
 import pygments.formatters
@@ -34,15 +34,6 @@ def font_face(
 class HTMLFormatter(pygments.formatters.HtmlFormatter):
     def __init__(self) -> None:
         super().__init__(style=conf.PygmentsStyle)
-
-    def wrap(
-        self, source: Iterable[tuple[int, str]]
-    ) -> Generator[tuple[int, str], object, None]:
-        for i, t in source:
-            if i:
-                # it's a line of formatted code
-                t += ""
-            yield i, t
 
     def get_linenos_style_defs(self) -> list[str]:
         return []
@@ -100,11 +91,27 @@ h1 {{
     background-color: {conf.THEME[2]};
 }}
 
+h2, h3 {{
+    margin: 0;
+    font-size: inherit;
+    font-weight: inherit;
+    color: {conf.THEME[1]};
+}}
+
+h2 {{
+    font-size: 16px;
+}}
+
+p {{
+    margin: 0;
+    text-indent: 2em;
+}}
+
 summary {{
     color: {conf.THEME[1]};
 }}
 
-pre {{
+pre, code {{
     margin: 0;
     font: inherit;
     white-space: pre-wrap;
@@ -116,7 +123,8 @@ pre {{
     )
     characters = set()
     print("<main>")
-    # TODO: render markdown here
+    with open("README.md") as f:
+        print(mistletoe.markdown(f))
     print("<h1>原理</h1>")
     print(end="<pre>")
     for filename in sorted(
