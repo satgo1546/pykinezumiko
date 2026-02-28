@@ -23,11 +23,8 @@ ENV/
 env.bak/
 venv.bak/
 
-# go-cqhttp产生的缓存
-/data
-
-# Poetry lock file
-poetry.lock
+# Ruff
+.ruff_cache/
 
 # makedocs.py产生的缓存
 /cache

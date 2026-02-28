@@ -3,7 +3,7 @@ import sys
 import subprocess
 import urllib.request
 import base64
-from typing_extensions import Buffer
+from collections.abc import Buffer
 import zipfile
 import tempfile
 import urllib.parse
@@ -166,6 +166,8 @@ pre, code {{
             f.write("".join(characters))
         subprocess.run(
             [
+                "uvx",
+                "--from=fonttools[woff]",
                 "pyftsubset",
                 "cache/hei.otf",
                 f"--output-file={tmpdir}/subset",
