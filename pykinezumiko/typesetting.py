@@ -13,9 +13,7 @@ from . import conf
 
 # 虽然函数名叫truetype，但是下层调用的FreeType其实支持许多字体格式。
 # 反倒是用适用于Windows的文泉驿点阵正黑渲染会有错位。
-font = ImageFont.truetype(
-    pkgutil.get_data(__name__, "resources/wenquanyi_10pt.pcf"), 13
-)
+font = ImageFont.truetype(pkgutil.get_data(__name__, "resources/wenquanyi_10pt.pcf"), 13)
 
 
 class Glue(NamedTuple):
@@ -88,12 +86,7 @@ def is_breakable(ch: str) -> bool:
     大概能一直用到Unicode 19.1版吧。
     """
     i = ord(ch)
-    return (
-        0x2E80 <= i < 0xA000
-        or 0xF900 <= i < 0xFB00
-        or 0xFF00 <= i < 0xFFF0
-        or 0x20000 <= i < 0x40000
-    )
+    return 0x2E80 <= i < 0xA000 or 0xF900 <= i < 0xFB00 or 0xFF00 <= i < 0xFFF0 or 0x20000 <= i < 0x40000
 
 
 def break_text(text: str, line_width: float) -> list[list[tuple[float, str]]]:
@@ -149,11 +142,7 @@ def break_text(text: str, line_width: float) -> list[list[tuple[float, str]]]:
             dp[k] = min(
                 (
                     dp[j][0]
-                    + (
-                        0.0
-                        if items[k] == "\n"
-                        else (cumsum[k] - cumsum[j + isspace[j]]).demerit(line_width)
-                    ),
+                    + (0.0 if items[k] == "\n" else (cumsum[k] - cumsum[j + isspace[j]]).demerit(line_width)),
                     j,
                 )
                 for j in range(i, k)
@@ -176,13 +165,7 @@ def break_text(text: str, line_width: float) -> list[list[tuple[float, str]]]:
         ratio = 0.0 if items[k] == "\n" else (cumsum[k] - cumsum[i]).ratio(line_width)
         if math.isinf(ratio):
             ratio = 0.0
-        lines.append(
-            [
-                ((cumsum[j] - cumsum[i]).set(ratio), items[j])
-                for j in range(i, k)
-                if not isspace[j]
-            ]
-        )
+        lines.append([((cumsum[j] - cumsum[i]).set(ratio), items[j]) for j in range(i, k) if not isspace[j]])
     return lines
 
 

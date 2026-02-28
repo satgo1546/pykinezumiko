@@ -1,4 +1,5 @@
 """存储到处都要使用的全局配置。"""
+
 import pygments.style
 import pygments.token
 
@@ -12,7 +13,6 @@ ACCENTS = ("#b71c1c", "#827717", "#33691e", "#009095", "#0d47a1", "#4a148c")
 
 
 class PygmentsStyle(pygments.style.Style):
-    """代码高亮的样式。"""
     styles = {
         # 【编程语言】
         # 红：关键字。
@@ -48,3 +48,4 @@ class PygmentsStyle(pygments.style.Style):
         pygments.token.Generic.Emph: "italic",
         pygments.token.Generic.EmphStrong: "bold",
     }
+    """代码高亮的样式。"""

@@ -10,11 +10,11 @@ class Clock(pykinezumiko.Plugin):
     def __init__(self) -> None:
         super().__init__()
         # 存储路径
-        self.path = 'logs/20clock.pickle'
+        self.path = "logs/20clock.pickle"
         # 提醒队列
         t = []
         if os.path.isfile(self.path):
-            with open(self.path, 'rb') as f:
+            with open(self.path, "rb") as f:
                 t = pickle.load(f)
         self.pq = PriorityQueue()
         for l in t:
@@ -38,16 +38,16 @@ class Clock(pykinezumiko.Plugin):
                     return "标题不能为空"
 
             # 存储格式：[浮点触发时间戳，回复内容，会话id]
-            self.pq.put([time.time()+dt, title, context])
-            with open(self.path, 'wb') as f:
+            self.pq.put([time.time() + dt, title, context])
+            with open(self.path, "wb") as f:
                 pickle.dump(list(self.pq.queue), f)
-            return str(time.time()+dt) + " "+title
+            return str(time.time() + dt) + " " + title
 
     def on_interval(self):
         # 如果提醒队列非空且第一个提醒到时间了就提醒用户
         while not self.pq.empty() and self.pq.queue[0][0] < time.time():
             _, title, target = self.pq.get()
-            with open(self.path, 'wb') as f:
+            with open(self.path, "wb") as f:
                 pickle.dump(list(self.pq.queue), f)
             self.send(target, title)
             time.sleep(1)

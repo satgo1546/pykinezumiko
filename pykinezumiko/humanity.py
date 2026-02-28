@@ -161,9 +161,7 @@ def parse_command(
 
         # 根据参数类型匹配字符串。
         for parameter in (
-            typing.get_args(parameter)
-            if typing.get_origin(parameter) in (Union, UnionType)
-            else (parameter,)
+            typing.get_args(parameter) if typing.get_origin(parameter) in (Union, UnionType) else (parameter,)
         ):
             # NoReturn is not Never，什么鬼？
             if parameter is NoReturn or parameter is Never:
@@ -176,9 +174,7 @@ def parse_command(
                 kwargs[name] = None
                 optional = True
             elif parameter is int:
-                match = match_start_or_end(
-                    r"[+-]?(\d+|0x[0-9a-f]+|0o[0-7]+|0b[01]+)", text, re.IGNORECASE
-                )
+                match = match_start_or_end(r"[+-]?(\d+|0x[0-9a-f]+|0o[0-7]+|0b[01]+)", text, re.IGNORECASE)
             elif parameter is float:
                 match = match_start_or_end(
                     r"[+-]?(\d*\.\d*|0x[0-9a-f]*\.[0-9a-f]*p\d+|\d+)",

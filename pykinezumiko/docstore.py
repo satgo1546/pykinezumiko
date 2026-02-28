@@ -16,8 +16,7 @@ TableT = TypeVar("TableT", bound="Table")
 
 
 class Comparable(Protocol[T_contra]):
-    def __lt__(self, __other: T_contra) -> bool:
-        ...
+    def __lt__(self, __other: T_contra) -> bool: ...
 
 
 ComparableT = TypeVar("ComparableT", bound=Comparable)
@@ -196,9 +195,7 @@ class Database:
     def dirty(self) -> bool:
         return any(table.dirty for table in self.tables)
 
-    def worksheet_data(
-        self, table: Table
-    ) -> Generator[tuple[tuple[int, int], xlsx.CellValue], None, None]:
+    def worksheet_data(self, table: Table) -> Generator[tuple[tuple[int, int], xlsx.CellValue], None, None]:
         fields = typing.get_type_hints(table)
         yield (0, 0), ""
         for j, field in enumerate(fields):

@@ -3,6 +3,7 @@ import random
 
 import pykinezumiko
 
+
 class 今日人品(pykinezumiko.Plugin):
     def on_command_jrrp(self, sender: int):
         r = random.Random((int(time.time()) + 3600 * 8) // 86400 + sender)

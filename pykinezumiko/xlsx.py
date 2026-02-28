@@ -327,7 +327,7 @@ def pool(index_base: int = 0) -> defaultdict[Any, int]:
 
 
 def read(
-    file: Union[str, os.PathLike[str], IO[bytes]]
+    file: Union[str, os.PathLike[str], IO[bytes]],
 ) -> dict[str, defaultdict[tuple[int, int], CellValue]]:
     """读取指定的工作簿。
 
@@ -534,9 +534,7 @@ def write(
 
         def style(sheet_name: str, i: int, j: int, value: CellValue) -> int:
             cell_style.reset()
-            cell_style.number_format = (
-                _value_to_cell(value, shared_strings)[0] or cell_style.number_format
-            )
+            cell_style.number_format = _value_to_cell(value, shared_strings)[0] or cell_style.number_format
             styler(cell_style, sheet_name, i, j, value)
             return cell_xfs[
                 number_formats[cell_style.number_format],
@@ -572,9 +570,9 @@ def write(
                         raise ValueError("超出范围的单元格")
                     old_j = j
                     if j not in columns:
-                        columns[
-                            j
-                        ] = f'<col min="{j + 1}" max="{j + 1}" style="{style(sheet_name, -1, j, None)}" width="{cell_style.width}" customWidth="1"/>'
+                        columns[j] = (
+                            f'<col min="{j + 1}" max="{j + 1}" style="{style(sheet_name, -1, j, None)}" width="{cell_style.width}" customWidth="1"/>'
+                        )
                     xml_body += f'<c r="{column_number_to_letter(j)}{i + 1}" s="{style(sheet_name, i, j, cell)}" {_value_to_cell(cell, shared_strings)[1]}</c>'
                 xml_body += "</row>"
             old_j = -1
@@ -619,9 +617,7 @@ def write(
             % (
                 len(shared_strings),
                 len(shared_strings),
-                "".join(
-                    f"<si><t>{html.escape(val)}</t></si>" for val in shared_strings
-                ),
+                "".join(f"<si><t>{html.escape(val)}</t></si>" for val in shared_strings),
             ),
         )
 
@@ -668,9 +664,7 @@ def write(
         )
 
 
-def _value_to_cell(
-    x: CellValue, shared_strings: Mapping[str, int]
-) -> tuple[Optional[str], str]:
+def _value_to_cell(x: CellValue, shared_strings: Mapping[str, int]) -> tuple[Optional[str], str]:
     """转换Python数据到单元格数值格式和SpreadsheetML <c>节点的属性和内容。
 
     对单元格格式没有特殊要求时返回None。返回值的XML片段应该嵌入在"<c "和"</c>"之间。
@@ -743,9 +737,7 @@ def _cell_to_primitive(el: ET.Element, shared_strings: list[str]) -> CellPrimiti
         return float(value)
 
 
-def _primitive_to_value(
-    el: ET.Element, shared_strings: list[str], style_number_formats: list[str]
-) -> CellValue:
+def _primitive_to_value(el: ET.Element, shared_strings: list[str], style_number_formats: list[str]) -> CellValue:
     """从单元格数值格式解析原始Python数据到复杂数据。"""
     value = _cell_to_primitive(el, shared_strings)
     number_format = style_number_formats[int(el.get("s", "0"))]
@@ -771,11 +763,7 @@ def _primitive_to_value(
         and ("0" in format_codes or "#" in format_codes)
     ):
         return int(value)
-    if (
-        isinstance(value, float)
-        and value >= 0
-        and re.search(r"[ymdhsgebวดปชนท]", format_codes, re.IGNORECASE)
-    ):
+    if isinstance(value, float) and value >= 0 and re.search(r"[ymdhsgebวดปชนท]", format_codes, re.IGNORECASE):
         return EPOCH + datetime.timedelta(value)
     return value
 

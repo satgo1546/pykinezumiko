@@ -28,9 +28,7 @@ os.makedirs("excel", exist_ok=True)
 databases = defaultdict(list)
 for t in leaf_subclasses(docstore.Record):
     databases[t.__module__].append(t)
-databases = [
-    docstore.Database(f"excel/{name}.xlsx", tuple(tables)) for name, tables in databases.items()
-]
+databases = [docstore.Database(f"excel/{name}.xlsx", tuple(tables)) for name, tables in databases.items()]
 
 # 实例化找到的插件类。
 plugins: list[Plugin] = []

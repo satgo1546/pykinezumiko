@@ -39,9 +39,7 @@ class Commander(pykinezumiko.Plugin):
         subprocess.run(["git", "push"], check=True)
         # 尝试启动新的版本。
         print("启动")
-        process = subprocess.Popen(
-            [sys.executable, "-m", "pykinezumiko", "通过.reload启动"]
-        )
+        process = subprocess.Popen([sys.executable, "-m", "pykinezumiko", "通过.reload启动"])
         try:
             print("等待")
             process.wait(5)

@@ -17,9 +17,7 @@ import pygments.token
 from . import conf
 
 
-def font_face(
-    woff2: Buffer, name: str, weight: str = "normal", style: str = "normal"
-) -> str:
+def font_face(woff2: Buffer, name: str, weight: str = "normal", style: str = "normal") -> str:
     """生成内联WOFF2字体数据的CSS字体声明。"""
     return f"""
 @font-face {{
@@ -72,11 +70,13 @@ main {{
     border: 3px solid {conf.THEME[1]};
     padding: 4px 12px;
     background:
-        0 27px url("data:image/svg+xml,{urllib.parse.quote(f'''
+        0 27px url("data:image/svg+xml,{
+            urllib.parse.quote(f'''
 <svg xmlns='http://www.w3.org/2000/svg' width='8' height='28'>
 <path d='m0 .5 h 4' stroke='{conf.THEME[2]}'/>
 </svg>
-''')}") content-box,
+''')
+        }") content-box,
         {conf.THEME[3]};
     overflow: hidden;
 }}

@@ -9,10 +9,7 @@ def decbv(bv: str) -> int:
     :param bv: 可以是"BV1GJ411x7h7"或单纯的"1GJ411x7h7"。
     """
     avid = 0
-    bv_indices = [
-        "fZodR9XQDSUm21yCkr6zBqiveYah8bt4xsWpHnJE7jL5VG3guMTKNPAwcF".index(ch)
-        for ch in bv[-10:]
-    ]
+    bv_indices = ["fZodR9XQDSUm21yCkr6zBqiveYah8bt4xsWpHnJE7jL5VG3guMTKNPAwcF".index(ch) for ch in bv[-10:]]
     for i in range(6):
         avid += bv_indices[(1, 2, 4, 6, 8, 9)[i]] * 58 ** (2, 4, 5, 3, 1, 0)[i]
     return (avid - 8728348608) ^ 177451812
@@ -25,9 +22,7 @@ def encav(avid: int) -> str:
     """
     bv = ["1", "?", "?", "4", "?", "1", "?", "7", "?", "?"]
     for i in range(6):
-        bv[
-            (1, 2, 4, 6, 8, 9)[i]
-        ] = "fZodR9XQDSUm21yCkr6zBqiveYah8bt4xsWpHnJE7jL5VG3guMTKNPAwcF"[
+        bv[(1, 2, 4, 6, 8, 9)[i]] = "fZodR9XQDSUm21yCkr6zBqiveYah8bt4xsWpHnJE7jL5VG3guMTKNPAwcF"[
             ((avid ^ 177451812) + 8728348608) // 58 ** (2, 4, 5, 3, 1, 0)[i] % 58
         ]
     return "".join(bv)
@@ -43,9 +38,7 @@ class Code(pykinezumiko.Plugin):
         b23 = {
             url: decbv(match.group())
             for url in (
-                requests.head("https://" + url.group().replace("\\", "")).headers[
-                    "Location"
-                ]
+                requests.head("https://" + url.group().replace("\\", "")).headers["Location"]
                 for url in re.finditer(r"\bb23\.tv\\{0,2}\/[A-Za-z0-9]{3,8}", text)
             )
             if (match := re.search(r"BV1..4.1.7..", url))
@@ -56,11 +49,7 @@ class Code(pykinezumiko.Plugin):
             str3 = "和" if bv and b23 else ""
             r = f"消息中的{str1}{str3}{str2}被转换为 aid。\n"
             # 目前小程序暂时还不是这样接收的。之后可能会修改。
-            if (
-                text.startswith("\x1b<Rich message::Xiaochengxu>")
-                and not bv
-                and len(b23) == 1
-            ):
+            if text.startswith("\x1b<Rich message::Xiaochengxu>") and not bv and len(b23) == 1:
                 r = f"bilibili 小程序被转换为地址。\n"
             bv |= b23
             r += (
@@ -125,9 +114,7 @@ class Code(pykinezumiko.Plugin):
         MORSE_TABLE[MORSE_TABLE[c]] = c
     MORSE_DOTS = ".·⋅∙•⸳⸱・･ꞏ․‧˙⦁"
     MORSE_DASHES = "-‐‒–—⁃−𐆑―一ー𝄖－"
-    MORSE_NORMALIZE = str.maketrans(
-        MORSE_DOTS + MORSE_DASHES, "." * len(MORSE_DOTS) + "-" * len(MORSE_DASHES)
-    )
+    MORSE_NORMALIZE = str.maketrans(MORSE_DOTS + MORSE_DASHES, "." * len(MORSE_DOTS) + "-" * len(MORSE_DASHES))
 
     @pykinezumiko.documented()
     def on_command_morse(self, s: str):

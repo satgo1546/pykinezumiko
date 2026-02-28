@@ -41,9 +41,9 @@ class Plugin:
     """
 
     def __init__(self) -> None:
-        self.flows: OrderedDict[
-            tuple[int, int], tuple[float, Generator[object, str | None, object]]
-        ] = OrderedDict()
+        self.flows: OrderedDict[tuple[int, int], tuple[float, Generator[object, str | None, object]]] = (
+            OrderedDict()
+        )
         """尚在进行的对话流程。
 
         从(context, sender)到(最后活动时间戳, 程序执行状态)的映射，按最后活动时间从早到晚排序。
@@ -105,9 +105,7 @@ class Plugin:
             # 试图用itertools.chain改写下列对extend的调用会导致……
             # args.items在之前args.pop被调用，引发“迭代时字典大小变化”的运行时异常。
             ret = [name]
-            ret.extend(
-                f"{k}={args.pop(k, '')}" for k in cls.KNOWN_ENTITIES.get(name, ())
-            )
+            ret.extend(f"{k}={args.pop(k, '')}" for k in cls.KNOWN_ENTITIES.get(name, ()))
             ret.extend(f"{k}={v}" for k, v in args.items())
             return "\x9d" + "\0".join(ret) + "\x9c"
 
@@ -188,13 +186,9 @@ class Plugin:
         name = name or os.path.basename(filename)
         filename = os.path.realpath(filename)
         if context >= 0:
-            cls.gocqhttp(
-                "upload_private_file", user_id=context, file=filename, name=name
-            )
+            cls.gocqhttp("upload_private_file", user_id=context, file=filename, name=name)
         else:
-            cls.gocqhttp(
-                "upload_group_file", group_id=-context, file=filename, name=name
-            )
+            cls.gocqhttp("upload_group_file", group_id=-context, file=filename, name=name)
 
     def on_event(self, context: int, sender: int, data: dict[str, Any]) -> bool:
         """接收事件并调用对应的事件处理方法。
@@ -208,15 +202,11 @@ class Plugin:
             # 这个类型的上报只有好友消息和群聊消息两种。
             message = self.unescape(data["raw_message"])
             # 强制终止超过一天仍未结束的对话流程。
-            while (
-                self.flows and next(iter(self.flows.values()))[0] < time.time() - 86400
-            ):
+            while self.flows and next(iter(self.flows.values()))[0] < time.time() - 86400:
                 self.flows.popitem(last=False)
             # 如果当前上下文中的发送者没有仍在进行的对话流程，有可能因本条消息启动新的对话流程。
             if (context, sender) not in self.flows:
-                result = self.dispatch_command(
-                    context, sender, message, data["message_id"]
-                )
+                result = self.dispatch_command(context, sender, message, data["message_id"])
                 # 是否启动了新的对话流程？
                 if isinstance(result, Generator):
                     self.flows[context, sender] = time.time(), result
@@ -237,9 +227,7 @@ class Plugin:
             result = self.on_admission(context, sender, data["comment"])
             if result is not None:
                 if data["request_type"] == "friend":
-                    self.gocqhttp(
-                        "set_friend_add_request", flag=data["flag"], approve=result
-                    )
+                    self.gocqhttp("set_friend_add_request", flag=data["flag"], approve=result)
                 elif data["request_type"] == "group":
                     self.gocqhttp(
                         "set_group_add_request",
@@ -255,9 +243,7 @@ class Plugin:
         elif data["notice_type"] in ("friend_recall", "group_recall"):
             message = Plugin.gocqhttp("get_msg", message_id=data["message_id"])
             message = str(message["raw_message"]) if "raw_message" in message else ""
-            result = self.on_message_deleted(
-                context, sender, message, data["message_id"]
-            )
+            result = self.on_message_deleted(context, sender, message, data["message_id"])
         elif data["notice_type"] == "offline_file":
             result = self.on_file(
                 context,
@@ -273,9 +259,7 @@ class Plugin:
                 file_id=data["file"]["id"],
                 busid=data["file"]["busid"],
             )["url"]
-            result = self.on_file(
-                context, sender, data["file"]["name"], data["file"]["size"], url
-            )
+            result = self.on_file(context, sender, data["file"]["name"], data["file"]["size"], url)
         # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
         # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。
         if context and result is not None and result is not True:
@@ -290,8 +274,7 @@ class Plugin:
         """
 
     @overload
-    def name(self, context: tuple[int, int]) -> str:
-        ...
+    def name(self, context: tuple[int, int]) -> str: ...
 
     @overload
     def name(self, context: int) -> str:
@@ -317,16 +300,12 @@ class Plugin:
             if context[0] >= 0:
                 name = self.name(context[1])
             else:
-                response = self.gocqhttp(
-                    "get_group_member_info", group_id=-context[0], user_id=context[1]
-                )
+                response = self.gocqhttp("get_group_member_info", group_id=-context[0], user_id=context[1])
                 name = response.get("card") or response["nickname"]
         self._name_cache[context] = name
         return name
 
-    def dispatch_command(
-        self, context: int, sender: int, text: str, message_id: int
-    ) -> object:
+    def dispatch_command(self, context: int, sender: int, text: str, message_id: int) -> object:
         """找到并调用某个on_command_×××，抑或是on_message。
 
         方法名的匹配是模糊的，但要求方法名必须为规范形式。
@@ -478,10 +457,7 @@ def documented(
         under.__doc__ = (
             (inspect.getdoc(under) or "")
             + "\n‣ "
-            + (
-                f.__doc__
-                or humanity.command_prefix[0] + f.__name__.removeprefix("on_command_")
-            )
+            + (f.__doc__ or humanity.command_prefix[0] + f.__name__.removeprefix("on_command_"))
             .partition("\n")[0]
             .strip()
         )
