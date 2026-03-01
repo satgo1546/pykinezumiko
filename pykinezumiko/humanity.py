@@ -2,8 +2,8 @@ import re
 import typing
 import unicodedata
 from itertools import filterfalse, groupby
-from typing import Any, NoReturn, Never, SupportsInt, Union
 from types import UnionType
+from typing import Any, Never, NoReturn, SupportsInt, Union
 
 
 def format_timespan(seconds: SupportsInt) -> str:
@@ -46,7 +46,7 @@ def parse_number(s: str, default=0) -> float:
         head, c, tail = s.partition(c)
         if c:
             return parse_number(head, 1) * v + parse_number(tail)
-    s = s.translate(str.maketrans("零点〇一二三四五六七八九", "0.0123456789"))
+    s = s.translate(str.maketrans("〇一二三四五六七八九点零壹贰叁肆伍陆柒捌玖", "0123456789.0123456789"))
     try:
         return float(s)
     except ValueError:
