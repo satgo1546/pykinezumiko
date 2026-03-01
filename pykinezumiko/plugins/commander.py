@@ -5,7 +5,8 @@ import tarfile
 import tempfile
 import time
 
-import requests
+import httpx
+
 import pykinezumiko
 from pykinezumiko.humanity import format_timespan
 
@@ -114,7 +115,7 @@ class Commander(pykinezumiko.Plugin):
             old_name = f"{new_name}.{time.strftime('%Y-%m-%d_%H_%M')}.xlsx"
             os.rename(new_name, old_name)
             with open(new_name, "wb") as f:
-                f.write(requests.get(url).content)
+                f.write(httpx.get(url).content)
             from pykinezumiko import app
 
             app.databases[name].reload()

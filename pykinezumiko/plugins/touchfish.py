@@ -1,5 +1,6 @@
 import time
-import requests
+
+import httpx
 
 import pykinezumiko
 
@@ -21,7 +22,7 @@ class TouchFish(pykinezumiko.Plugin):
         self.path = "logs/20touchfish.txt"
 
     def on_command_touch_fish(self, sender: int) -> None:
-        r = requests.get("https://api.vvhan.com/api/moyu?type=json", timeout=3)
+        r = httpx.get("https://api.vvhan.com/api/moyu?type=json", timeout=3)
         # 请求摸鱼人日历API
         self.send(sender, f"\x9dimage\0file={r.json()['url']}\x9c")
 

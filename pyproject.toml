@@ -17,8 +17,8 @@ dependencies = [
     "pillow>=12.1.1",
     # 颜料
     "pygments>=2.19.2",
-    # 请求书
-    "requests>=2.32.5",
+    # 超文本传输协议增强版
+    "httpx>=0.28.1",
     # 槲寄生
     "mistletoe>=1.5.1",
 ]

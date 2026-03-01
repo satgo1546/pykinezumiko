@@ -1,5 +1,7 @@
 import re
-import requests
+
+import httpx
+
 import pykinezumiko
 
 
@@ -38,7 +40,7 @@ class Code(pykinezumiko.Plugin):
         b23 = {
             url: decbv(match.group())
             for url in (
-                requests.head("https://" + url.group().replace("\\", "")).headers["Location"]
+                httpx.head("https://" + url.group().replace("\\", "")).headers["Location"]
                 for url in re.finditer(r"\bb23\.tv\\{0,2}\/[A-Za-z0-9]{3,8}", text)
             )
             if (match := re.search(r"BV1..4.1.7..", url))

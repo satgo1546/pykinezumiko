@@ -7,7 +7,7 @@ from collections import OrderedDict
 from collections.abc import Generator
 from typing import Any, Callable, ClassVar, Never, TypeVar, overload
 
-import requests
+import httpx
 
 # 即使没有在本文件中用到，也要保留这些子模块的重新导出，以便在import pykinezumiko时就导入子模块。
 from . import humanity, conf, docstore
@@ -153,7 +153,7 @@ class Plugin:
             gocqhttp("get_login_info")["nickname"]
         """
         kwargs.update(data)
-        data = requests.post(
+        data = httpx.post(
             f"http://127.0.0.1:5700/{endpoint}",
             headers={"Content-Type": "application/json"},
             json=kwargs,

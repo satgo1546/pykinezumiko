@@ -1,7 +1,8 @@
-import re
 import json
+import re
 
-import requests
+import httpx
+
 import pykinezumiko
 
 apiKey = "1145141919810HENGHENGAAAAAAAAAAAAAAPIKEY"
@@ -19,7 +20,7 @@ def search(imageURL: str, num: int = 1) -> str:
         "numres": num,
     }
 
-    r = requests.get(url=url, params=params)
+    r = httpx.get(url=url, params=params)
     print("响应", r.text)
     min_ = json.loads(r.text).get("header").get("minimum_similarity")
     res = json.loads(r.text).get("results")
