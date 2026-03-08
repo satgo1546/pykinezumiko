@@ -24,3 +24,6 @@ venv.bak/
 
 # makedocs.py产生的缓存
 /cache
+
+# 自定义插件
+/pykinezumiko/plugins/_*
