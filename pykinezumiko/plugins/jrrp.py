@@ -1,10 +1,10 @@
-import time
 import random
+import time
 
-import pykinezumiko
+from pykinezumiko import Event, on_command
 
 
-class 今日人品(pykinezumiko.Plugin):
-    def on_command_jrrp(self, sender: int):
-        r = random.Random((int(time.time()) + 3600 * 8) // 86400 + sender)
-        return f"今日のあんたん運勢は{r.randrange(101)}点や。"
+@on_command("123")
+def _(event: Event):
+    r = random.Random(time.strftime("%j%Y") + str(event.sender))
+    return f"[{event.sender}] 的今日人品为 {r.randrange(101)}。"
