@@ -5,12 +5,12 @@ import time
 from bisect import bisect_left
 from collections import OrderedDict
 from collections.abc import Generator
+from dataclasses import dataclass
 from typing import Any, Callable, ClassVar, Never, TypeVar, overload
 
 import httpx
 
-# 即使没有在本文件中用到，也要保留这些子模块的重新导出，以便在import pykinezumiko时就导入子模块。
-from . import humanity, conf, docstore
+from . import humanity
 
 CallableT = TypeVar("CallableT", bound=Callable)
 
@@ -49,91 +49,93 @@ class Plugin:
         从(context, sender)到(最后活动时间戳, 程序执行状态)的映射，按最后活动时间从早到晚排序。
         """
 
-    KNOWN_ENTITIES = {
-        "face": ["id"],
-        "image": ["url", "type", "subType"],
-        "record": ["url", "magic"],
-        "at": ["qq"],
-        "share": ["url", "title", "content", "image"],
-        "reply": ["id", "seq"],
-        "poke": ["qq"],
-        "forward": ["id"],
-        "xml": ["resid", "data"],
-        "json": ["resid", "data"],
-    }
-    """unescape方法会将部分已知的控制序列命名参数按此处的顺序排列，以便依靠正则表达式匹配接收到的文本。"""
+    @staticmethod
+    def segments_to_str(message: list[object]) -> str:
+        r"""转换OneBot消息段列表到木鼠子码字符串。
 
-    @classmethod
-    def unescape(cls, raw_message: str) -> str:
-        r"""转换传入的CQ码到更不容易遇到转义问题的木鼠子码。
-
-        CQ码表示为"[CQ:face,id=178]"的消息会被转换为"\x9dface\0id=178\x9c"。
-        基本上，"["对应"\x9d"，"]"对应"\x9c"，","对应"\0"。
+        木鼠子码用"\a<控制序列 参数值 参数值>"表示。
         通过使用莫名其妙的控制字符，使控制序列与常规文本冲突的可能性降到极低。
-        当输入确实包含"\x9d"和"\x9c"时就完蛋了，到那时再自求多福吧。
+        因为"< >"三个字符都被HTML占用，被列为URL中禁止使用的字符，因此参数是网址也没有问题。
+        当输入确实包含"\a"时就完蛋了，到那时再自求多福吧。
 
-        【已否决的设计】
-        [CQ:控制序列,参数名=参数值,参数名=参数值]
-            由酷Q设计，在QQ机器人界，这种格式十分流行。
-            但是，因为占用了方括号和逗号字符，必须小心处理转义问题。
-            转义序列以"&"开头。
-            保守的转义处理方式导致任何包含逗号和"&"的消息都被大量改动。
-            要处理英语文本、网址、JSON字面量时，就不得不面对解析。
-
-        \e<控制序列 参数值 参数值>
-            这是TenshitMirai的格式。
-            因为使用了U+001B这一控制字符而几乎不会遇到普通文本消息被转义问题。
-            因为"<"和">"被HTML占用，被列为URL中禁止使用的字符，因此参数是网址也没有问题。
-            mirai提供面向对象的消息接口，因此不得不花费很多代码来序列化到纯文本和从纯文本反序列化。
-            mirai也提供类似CQ码的mirai码，也有和CQ码一样的问题。
-            Ruby和GCC支持"\e"作为"\033"的别名，但包括Python在内的许多其他地方并不支持。
-            直接输出到终端的时候可能会把终端状态搞乱。
-
-        \e]114514;控制序列;参数值;参数值\e\\
-            xterm提出了"\e]"开始、"\e\\"或"\a"终止的终端控制序列。
-            参数通常用分号隔开，如果参数值中有分号就完了。
-            使用一个随便的数字，就能保证在输出到终端的时候隐藏控制序列。
-
-        ❰控制序列❚参数值❚参数值❱
-            为什么不试试神奇的Unicode呢？
+        木鼠子码最大的好处是，将数据结构统一展平成字符串后，能在整条消息上使用正则表达式，
+        而且不太需要特别处理就能正确应对表情等元素。
+        OneBot协议定义的元素名满是中式英语，参数也不统一，因此不得不花费很多代码来转换。
+        "\a"是Python中为数不多的有单字母缩写且不属于正则表达式空白（r"\s"）的控制字符之一。
         """
-
-        def replacer(match: re.Match[str]) -> str:
-            name, _, args = match.group(1).partition(",")
-            args = args.split(",") if args else []
-            args = dict(x.partition("=")[::2] for x in args)
-            # 试图用itertools.chain改写下列对extend的调用会导致……
-            # args.items在之前args.pop被调用，引发“迭代时字典大小变化”的运行时异常。
-            ret = [name]
-            ret.extend(f"{k}={args.pop(k, '')}" for k in cls.KNOWN_ENTITIES.get(name, ()))
-            ret.extend(f"{k}={v}" for k, v in args.items())
-            return "\x9d" + "\0".join(ret) + "\x9c"
-
-        return (
-            re.sub(r"\[CQ:(.*?)\]", replacer, raw_message, re.DOTALL)
-            .replace("&#91;", "[")
-            .replace("&#93;", "]")
-            .replace("&#44;", ",")
-            .replace("&amp;", "&")
-        )
+        text = ""
+        for segment in message:
+            # https://napcat.napneko.icu/onebot/sement
+            match segment:
+                case {"type": "text", "data": {"text": x}}:
+                    assert isinstance(x, str)
+                    text += x.replace("\a", "")
+                case {"type": "face", "data": {"id": x}}:
+                    text += f"\a<Emoticon {x}>"
+                case {"type": "at", "data": {"qq": x}}:
+                    text += f"\a<Mention {x}>"  # 包含Mention all
+                case {"type": "image", "data": {"url": url}}:
+                    text += f"\a<Image {url}>"
+                case {"type": "record", "data": {"path": path}}:
+                    text += f"\a<Resource::Audio {path}>"
+                case {"type": "video", "data": {"url": url}}:
+                    text += f"\a<Resource::Video {url}>"
+                case {"type": "file", "data": {"file_id": x}}:
+                    text += f"\a<Resource::File {x}>"
+                case {"type": "poke"} as a:
+                    print("POKE还有其他属性吗？", a)
+                    text += "\a<Poke>"
+                case {"type": "json", "data": {"data": x}}:
+                    text += f"\a<Resource::App>{x}"
+                case {"type": "reply", "data": {"id": x}}:
+                    text = f"\a<Quote {x}>" + text
+                case {"type": "forward", "data": {"content": x}}:
+                    print("收到合并转发", x)
+                    text += "\a<Begin quote>"
+                case {"type": x, "data": data}:
+                    print("警告：未知的消息元素，data字段 =", data)
+                    text += f"\a<{x}>"
+        return text
 
     @staticmethod
-    def escape(text: str) -> str:
-        """转换unescape函数所用的木鼠子码到CQ码。"""
-
-        def replacer(match: re.Match[str]) -> str:
-            return match.group().replace(",", "&#44;")
-
-        return re.sub(r"\x9d[^\x9d\x9c]*\x9c", replacer, text).translate(
-            {
-                ord("&"): "&amp;",
-                91: "&#91;",
-                93: "&#93;",
-                0x9D: "[CQ:",
-                0x9C: "]",
-                0: ",",
-            }
-        )
+    def str_to_segments(text: str) -> list[dict[str, str | dict[str, object]]]:
+        """转换木鼠子码字符串到消息段列表。"""
+        segments: list[dict[str, str | dict[str, object]]] = []
+        for match in re.finditer(r"[^\a]+|\a<([^<>]*)>", text):
+            if args := match.group(1):
+                args = args.split(" ")
+            match args:
+                case None:
+                    segments.append({"type": "text", "data": {"text": match.group()}})
+                case ["Emoticon", x]:
+                    segments.append({"type": "face", "data": {"id": x}})
+                case ["Mention", str(x)]:
+                    segments.append({"type": "at", "data": {"qq": x}})
+                case ["Image", url]:
+                    segments.append({"type": "image", "data": {"url": url}})
+                case ["Resource::Audio", path]:
+                    segments = [{"type": "record", "data": {"path": path}}]
+                    break
+                case ["Resource::Video", url]:
+                    segments = [{"type": "video", "data": {"url": url}}]
+                    break
+                case ["Resource::File", x]:
+                    segments = [{"type": "file", "data": {"file_id": x}}]
+                    break
+                case ["Poke"]:
+                    segments = [{"type": "poke", "data": {}}]
+                    break
+                case ["Resource::App", x]:
+                    segments = [{"type": "json", "data": {"data": text[match.end() :]}}]
+                    break
+                case ["Quote", x]:
+                    segments.append({"type": "reply", "data": {"id": x}})
+                case ["Begin quote"]:
+                    raise NotImplementedError("TODO")
+                case _:
+                    print("警告：无效的木鼠子码元素", args)
+                    segments.append({"type": "face", "data": {"id": "60"}})  # [咖啡]
+        return segments
 
     @staticmethod
     def gocqhttp(endpoint: str, data: dict = {}, **kwargs) -> dict:
@@ -153,13 +155,9 @@ class Plugin:
             gocqhttp("get_login_info")["nickname"]
         """
         kwargs.update(data)
-        data = httpx.post(
-            f"http://127.0.0.1:5700/{endpoint}",
-            headers={"Content-Type": "application/json"},
-            json=kwargs,
-        ).json()
+        data = httpx.post(f"http://127.0.0.1:5700/{endpoint}", json=kwargs).json()
         if data["status"] == "failed":
-            raise Exception(data["msg"], data["wording"])
+            raise RuntimeError(data["msg"], data["wording"])
         return data["data"] if "data" in data else {}
 
     @classmethod
@@ -172,7 +170,7 @@ class Plugin:
         cls.gocqhttp(
             "send_msg",
             {"user_id" if context >= 0 else "group_id": abs(context)},
-            message=cls.escape(message),
+            message=cls.str_to_segments(message),
         )
 
     @classmethod
@@ -197,10 +195,10 @@ class Plugin:
         :returns: True表示事件已受理，不应再交给其他插件；False表示应继续由其他插件处理本事件。
         """
         result: object = None
-        # https://docs.go-cqhttp.org/event/
+        # https://napcat.napneko.icu/onebot/event
         if data["post_type"] == "message":
             # 这个类型的上报只有好友消息和群聊消息两种。
-            message = self.unescape(data["raw_message"])
+            message = self.segments_to_str(data["message"])
             # 强制终止超过一天仍未结束的对话流程。
             while self.flows and next(iter(self.flows.values()))[0] < time.time() - 86400:
                 self.flows.popitem(last=False)
@@ -209,7 +207,7 @@ class Plugin:
                 result = self.dispatch_command(context, sender, message, data["message_id"])
                 # 是否启动了新的对话流程？
                 if isinstance(result, Generator):
-                    self.flows[context, sender] = time.time(), result
+                    self.flows[context, sender] = time.time(), result  # type:ignore
                     message = None  # 向Generator首次send的值必须为None
             # 当前上下文中的发送者有无仍在进行（或上面刚启动）的对话流程？
             if (context, sender) in self.flows:
@@ -461,6 +459,39 @@ def documented(
             .partition("\n")[0]
             .strip()
         )
+        return f
+
+    return decorator
+
+
+@dataclass
+class Entity:
+    id: int
+    name: str
+
+    def __index__(self) -> int:
+        return self.id
+
+    def __format__(self, format_spec: str, /) -> str:
+        return format(self.name, format_spec)
+
+
+@dataclass
+class Event:
+    context: Entity
+    sender: Entity
+    text: str
+
+
+EventHandlerT = TypeVar("EventHandlerT", bound=Callable[[Event], str | None])
+
+
+def on_command(name: str) -> Callable[[EventHandlerT], EventHandlerT]:
+    """用装饰器@on_command("foo")来监听.foo这样的指令。
+    这样一来，只需要处理有格式命令的话，甚至不必编写on_message事件处理器就能做到。
+    """
+
+    def decorator(f: EventHandlerT) -> EventHandlerT:
         return f
 
     return decorator
