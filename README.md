@@ -1,23 +1,26 @@
 # 木鼠子 ⅱ Python Ver. ~ 木卫二 ~
 
 ```
-         _,met$$$$$gg.           pi@raspberrypi
-      ,g$$$$$$$$$$$$$$$P.        OS: Debian 12 bookworm
-    ,g$$P""       """Y$$.".      Kernel: aarch64 Linux 6.1.0-rpi4-rpi-v8
-   ,$$P'              `$$$.      Uptime: 20h 55m
-  ',$$P       ,ggs.     `$$b:    Packages: 615
-  `d$$'     ,$P"'   .    $$$     Shell: bash 5.2.15
-   $$P      d$'     ,    $$P     Disk: 3.0G / 30G (11%)
-   $$:      $$.   -    ,d$$'     CPU: BCM2835 @ 4x 1.8GHz
-   $$\;      Y$b._   _,d$P'      RAM: 272MiB / 7811MiB
-   Y$$.    `.`"Y$$$$P"'
-   `$$b      "-.__
-    `Y$$
-     `Y$$.
-       `$$b.
-         `Y$$b.
-            `"Y$b._
-                `""""
+       .hddddddddddddddddddddddh.           pi@raspberrypi
+      :dddddddddddddddddddddddddd:          --------------
+     /dddddddddddddddddddddddddddd/         OS: Alpine Linux edge aarch64
+    +dddddddddddddddddddddddddddddd+        Host: Raspberry Pi 4 Model B Rev 1.4
+  `sdddddddddddddddddddddddddddddddds`      Kernel: Linux 6.12.69-0-rpi
+ `ydddddddddddd++hdddddddddddddddddddy`     Uptime: 6 days, 23 hours, 11 mins
+.hddddddddddd+`  `+ddddh:-sdddddddddddh.    Packages: 219 (apk)
+hdddddddddd+`      `+y:    .sddddddddddh    Shell: fish 4.5.0
+ddddddddh+`   `//`   `.`     -sddddddddd    Terminal: /dev/pts/7
+ddddddh+`   `/hddh/`   `:s-    -sddddddd    CPU: BCM2711 (4) @ 1.50 GHz
+ddddh+`   `/+/dddddh/`   `+s-    -sddddd    Memory: 1.83 GiB / 7.63 GiB (24%)
+ddd+`   `/o` :dddddddh/`   `oy-    .yddd    Swap: Disabled
+hdddyo+ohddyosdddddddddho+oydddy++ohdddh    Disk (/): 5.05 GiB / 28.80 GiB (18%) - ext4
+.hddddddddddddddddddddddddddddddddddddh.    Local IP (wlan0): 192.168.1.48/24
+ `yddddddddddddddddddddddddddddddddddy`     Locale: C.UTF-8
+  `sdddddddddddddddddddddddddddddddds`
+    +dddddddddddddddddddddddddddddd+
+     /dddddddddddddddddddddddddddd/
+      :dddddddddddddddddddddddddd:
+       .hddddddddddddddddddddddh.
 ```
 
 这里是今天也在树莓派4B上被修出新bug的骰娘<ruby>木鼠子<rp>（</rp><rt>きねずみこ</rt><rp>）</rp></ruby>。
@@ -28,30 +31,19 @@
 
 pykinezumiko是[OneBot](https://onebot.dev/) SDK。它和[NoneBot](https://nonebot.dev/)等框架有着类似的作用，只是设计毫无保留地偏向开发的快乐。
 
-要部署的话，首先要获取[go-cqhttp](https://docs.go-cqhttp.org/)（唯一经过测试的OneBot实现）的二进制发行版，放在任意位置运行，在生成配置文件时选择使用HTTP通信。在配置中请确认下列信息：
-
-- 账号和密码
-- 心跳间隔置为数秒～一分钟（被当作方便的定时器来用了）
-- 数据库处于启用状态（这应该是默认值）
-- 正向HTTP监听5700端口
-- 反向HTTP POST列表中包含`http://127.0.0.1:5701/`一项（这应该是一条模板配置，解除注释即可）
-
-额外需要的材料列表以[诗歌](pyproject.toml)形式提供，因此不必手动安装，可交由pip处理。因为使用了发行版往往不提供的库，不推荐全局安装，请使用喜爱的方式创建虚拟环境后执行`pip install pykinezumiko`。
-
-<details>
-<summary>使用开发分支</summary>
-
-```sh
-pip install --upgrade --editable git+https://github.com/satgo1546/pykinezumiko.git#egg=pykinezumiko
-```
-
-在requirements.txt中的写法：
+要部署的话，首先要获取并运行[NapCat](https://napcat.napneko.icu/)（唯一经过测试的OneBot实现），配置下列连接方式（网络配置）：
 
 ```
--e git+https://github.com/satgo1546/pykinezumiko.git#egg=pykinezumiko
+┌────────────────────────┐POST ┌────────────────────────┐
+│ OneBot                 ├────►│ pykinezumiko           │
+│ http://localhost:5700/ │◄────┤ http://localhost:5701/ │
+└────────────────────────┘ POST└────────────────────────┘
 ```
 
-</details>
+- 消息格式：数组
+- 令牌：空
+
+通过紫外线执行仓库内的主程序：`uv run main.py`。
 
 pykinezumiko没有所谓的配置文件，所有配置都基于入口程序充满副作用的导入。某种意义上，pykinezumiko是个库；副作用却无情地将事实扭曲成别样。
 
