@@ -66,16 +66,16 @@ class Plugin:
                 case {"type": "image", "data": {"url": url}}:
                     text += f"\a<Image {url}>"
                 case {"type": "record", "data": {"path": path}}:
-                    text += f"\a<Resource::Audio {path}>"
+                    text += f"\a<Audio {path}>"
                 case {"type": "video", "data": {"url": url}}:
-                    text += f"\a<Resource::Video {url}>"
+                    text += f"\a<Video {url}>"
                 case {"type": "file", "data": {"file_id": x}}:
-                    text += f"\a<Resource::File {x}>"
+                    text += f"\a<File {x}>"
                 case {"type": "poke"} as a:
                     print("POKE还有其他属性吗？", a)
                     text += "\a<Poke>"
                 case {"type": "json", "data": {"data": x}}:
-                    text += f"\a<Resource::App>{x}"
+                    text += f"\a<Special>{x}"
                 case {"type": "reply", "data": {"id": x}}:
                     text = f"\a<Quote {x}>" + text
                 case {"type": "forward", "data": {"content": x}}:
@@ -102,19 +102,19 @@ class Plugin:
                     segments.append({"type": "at", "data": {"qq": x}})
                 case ["Image", url]:
                     segments.append({"type": "image", "data": {"url": url}})
-                case ["Resource::Audio", path]:
+                case ["Audio", path]:
                     segments = [{"type": "record", "data": {"path": path}}]
                     break
-                case ["Resource::Video", url]:
+                case ["Video", url]:
                     segments = [{"type": "video", "data": {"url": url}}]
                     break
-                case ["Resource::File", x]:
+                case ["File", x]:
                     segments = [{"type": "file", "data": {"file_id": x}}]
                     break
                 case ["Poke"]:
                     segments = [{"type": "poke", "data": {}}]
                     break
-                case ["Resource::App", x]:
+                case ["Special", x]:
                     segments = [{"type": "json", "data": {"data": text[match.end() :]}}]
                     break
                 case ["Quote", x]:
