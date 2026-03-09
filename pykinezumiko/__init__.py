@@ -1,3 +1,12 @@
+"""与OneBot实现交互的模块。
+
+通过以“on_”开头的函数装饰器，可以监听事件。
+可以在事件处理中调用本模块的函数来作出行动。
+为方便计，可以直接返回要回复的文字，与执行send函数无异。
+"""
+
+from collections import defaultdict
+
 import inspect
 import os
 import re
@@ -8,403 +17,299 @@ from typing import Any, Callable, ClassVar, Never, TypeVar, overload
 
 import httpx
 
-from . import humanity
+from . import conf, humanity
 
 CallableT = TypeVar("CallableT", bound=Callable)
 
 
-class Plugin:
-    """所有插件的基类。
+def segments_to_str(message: list[object]) -> str:
+    r"""转换OneBot消息段列表到木鼠子码字符串。
 
-    继承此类且没有子类的类将自动被视为插件而实例化。
-    通过覆盖以“on_”开头的方法，可以监听事件。
-    因为这些方法都是空的，不必在覆盖的方法中调用super。
-    可以在事件处理中调用基类中的方法来作出行动。
+    木鼠子码用"\a<控制序列 参数值 参数值>"表示。
+    通过使用莫名其妙的控制字符，使控制序列与常规文本冲突的可能性降到极低。
+    因为"< >"三个字符都被HTML占用，被列为URL中禁止使用的字符，因此参数是网址也没有问题。
+    当输入确实包含"\a"时就完蛋了，到那时再自求多福吧。
 
-    事件包含整数型的context和sender参数。
+    木鼠子码最大的好处是，将数据结构统一展平成字符串后，能在整条消息上使用正则表达式，
+    而且不太需要特别处理就能正确应对表情等元素。
+    OneBot协议定义的元素名满是中式英语，参数也不统一，因此不得不花费很多代码来转换。
+    "\a"是Python中为数不多的有单字母缩写且不属于正则表达式空白（r"\s"）的控制字符之一。
+    """
+    text = ""
+    for segment in message:
+        # https://napcat.napneko.icu/onebot/sement
+        match segment:
+            case {"type": "text", "data": {"text": x}}:
+                assert isinstance(x, str)
+                text += x.replace("\a", "")
+            case {"type": "face", "data": {"id": x}}:
+                text += f"\a<Emoticon {x}>"
+            case {"type": "at", "data": {"qq": x}}:
+                text += f"\a<Mention {x}>"  # 包含Mention all
+            case {"type": "image", "data": {"url": url}}:
+                text += f"\a<Image {url}>"
+            case {"type": "record", "data": {"path": path}}:
+                text += f"\a<Audio {path}>"
+            case {"type": "video", "data": {"url": url}}:
+                text += f"\a<Video {url}>"
+            case {"type": "file", "data": {"file_id": x}}:
+                text += f"\a<File {x}>"
+            case {"type": "poke"} as a:
+                print("POKE还有其他属性吗？", a)
+                text += "\a<Poke>"
+            case {"type": "json", "data": {"data": x}}:
+                text += f"\a<Special>{x}"
+            case {"type": "reply", "data": {"id": x}}:
+                text = f"\a<Quote {x}>" + text
+            case {"type": "forward", "data": {"content": x}}:
+                print("收到合并转发", x)
+                text += "\a<Begin quote>"
+            case {"type": x, "data": data}:
+                print("警告：未知的消息元素，data字段 =", data)
+                text += f"\a<{x}>"
+    return text
+
+
+def str_to_segments(text: str) -> list[dict[str, str | dict[str, object]]]:
+    """转换木鼠子码字符串到消息段列表。"""
+    segments: list[dict[str, str | dict[str, object]]] = []
+    for match in re.finditer(r"[^\a]+|\a<([^<>]*)>", text):
+        if args := match.group(1):
+            args = args.split(" ")
+        match args:
+            case None:
+                segments.append({"type": "text", "data": {"text": match.group()}})
+            case ["Emoticon", x]:
+                segments.append({"type": "face", "data": {"id": x}})
+            case ["Mention", str(x)]:
+                segments.append({"type": "at", "data": {"qq": x}})
+            case ["Image", url]:
+                segments.append({"type": "image", "data": {"url": url}})
+            case ["Audio", path]:
+                segments = [{"type": "record", "data": {"path": path}}]
+                break
+            case ["Video", url]:
+                segments = [{"type": "video", "data": {"url": url}}]
+                break
+            case ["File", x]:
+                segments = [{"type": "file", "data": {"file_id": x}}]
+                break
+            case ["Poke"]:
+                segments = [{"type": "poke", "data": {}}]
+                break
+            case ["Special", x]:
+                segments = [{"type": "json", "data": {"data": text[match.end() :]}}]
+                break
+            case ["Quote", x]:
+                segments.append({"type": "reply", "data": {"id": x}})
+            case ["Begin quote"]:
+                raise NotImplementedError("TODO")
+            case _:
+                print("警告：无效的木鼠子码元素", args)
+                segments.append({"type": "face", "data": {"id": "60"}})  # [咖啡]
+    return segments
+
+
+def onebot(endpoint: str, data: dict = {}, **kwargs) -> dict[str, Any]:
+    """向OneBot实现发送请求，并返回响应数据。
+
+    使用例：
+
+    - 发送私聊消息
+
+        onebot("send_private_msg", user_id=114514, message="你好")
+
+    - 获取当前登录账号的昵称
+
+        onebot("get_login_info")["nickname"]
+    """
+    kwargs.update(data)
+    data = httpx.post(f"http://127.0.0.1:5700/{endpoint}", json=kwargs).json()
+    if data["status"] == "failed":
+        raise RuntimeError(data["msg"], data["wording"])
+    return data["data"] if "data" in data else {}
+
+
+def send(context: Entity | int, message: str) -> None:
+    """发送消息。
+
+    :param context: 发送目标，正数表示好友，负数表示群。
+    :param message: 要发送的消息内容，富文本用木鼠子码表示。
+    """
+    if isinstance(context, Entity):
+        context = context.id
+    onebot(
+        "send_msg",
+        {"user_id" if context >= 0 else "group_id": abs(context)},
+        message=str_to_segments(message),
+    )
+
+
+def send_file(context: int, filename: str, name: str | None = None) -> None:
+    """发送文件。
+
+    :param context: 发送目标。
+    :param filename: 本机文件路径。
+    :param name: 发送时显示的文件名。默认为路径中指定的文件名。
+    """
+    name = name or os.path.basename(filename)
+    filename = os.path.realpath(filename)
+    if context >= 0:
+        onebot("upload_private_file", user_id=context, file=filename, name=name)
+    else:
+        onebot("upload_group_file", group_id=-context, file=filename, name=name)
+
+
+def _call_handlers(handlers: list[EventHandlerT], event: Event):
+    results = []
+    exceptions = []
+    for handler in handlers:
+        try:
+            result = handler(event)
+        except Exception as e:
+            exceptions.append(e)
+            continue
+        # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
+        # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。
+        if result is not None:
+            results.append(format(result))
+    if exceptions:
+        raise ExceptionGroup("事件处理函数出错", exceptions)
+    else:
+        send(event.context, "\n".join(results))
+
+
+def on_event(data: dict[str, Any]) -> bool:
+    """接收事件并调用对应的事件处理函数。
+
+    :param data: 来自go-cqhttp的上报数据。
+    :returns: True表示事件已受理，不应再交给其他插件；False表示应继续由其他插件处理本事件。
+    """
+    result: object = None
+    # https://napcat.napneko.icu/onebot/event
+
+    # 为了原路反馈异常信息，在局部变量中记录消息上下文。
+    # 从OneBot事件数据中提取context和sender。
+    if sender := data.get("sender"):
+        sender = Entity(int(sender.get("user_id", "0")), str(sender.get("card", sender.get("nickname", ""))))
+    else:
+        sender = Entity(int(data.get("user_id", "0")), "")
+    if context := 0:
+        context = sender
+    else:
+        context = -int(data["group_id"]) if "group_id" in data else sender
+    try:
+        match data:
+            case {"post_type": "message", "message": list(x), "message_id": id}:
+                # 这个类型的上报只有好友消息和群聊消息两种。
+                result = _call_handlers(_on_message_handlers, Event(context, sender, segments_to_str(x), id))
+            case {"post_type": "request", "comment": message}:
+                # 这个类型的上报只有申请添加好友和申请加入群聊两种。
+                result = on_admission(context, sender, message)
+                if result is not None:
+                    if data["request_type"] == "friend":
+                        onebot("set_friend_add_request", flag=data["flag"], approve=result)
+                    elif data["request_type"] == "group":
+                        onebot("set_group_add_request", flag=data["flag"], type=data["sub_type"], approve=result)
+                    result = True
+            case {"notice_type": "friend_recall" | "group_recall", "message_id": id}:
+                message = onebot("get_msg", message_id=id)
+                message = str(message["raw_message"]) if "raw_message" in message else ""
+                result = on_message_deleted(context, sender, message, id)
+            case {"notice_type": "offline_file", "file": {"name": name, "size": size, "url": url}}:
+                result = on_file(context, sender, data["file"]["name"], data["file"]["size"], data["file"]["url"])
+            case {"notice_type": "group_upload", "file": {"id": id, "busid": busid}}:
+                url = onebot("get_group_file_url", group_id=-context, file_id=id, busid=busid)["url"]
+                result = on_file(context, sender, data["file"]["name"], data["file"]["size"], url)
+        return result is not None
+    except Exception as e:
+        tb = e.__traceback__
+        assert tb
+        while tb.tb_next:
+            tb = tb.tb_next
+        tb = tb.tb_frame
+        message = f"来自 {tb.f_code.co_filename}:{tb.f_lineno}:{tb.f_code.co_name} 的 {type(e).__name__}：{e}"
+        if context:
+            send(context, f"执行时发生了下列异常。\n{message}")
+        else:
+            send(conf.BACKSTAGE, f"处理无来源事件时发生了下列异常。\n{message}")
+        # 再行抛出错误，以便打印错误堆栈到控制台。
+        raise
+
+
+def on_admission(context: int, sender: int, text: str) -> bool | None:
+    """收到了添加好友的请求或加入群聊的请求。
+
+    返回True接受，False拒绝，None无视并留给下一个插件处理。
+    """
+
+
+@dataclass
+class Entity:
+    id: int
+    name: str
+
+    def __index__(self) -> int:
+        return self.id
+
+    def __format__(self, format_spec: str, /) -> str:
+        return format(self.name, format_spec)
+
+
+@dataclass
+class Event:
+    """事件包含整数型的context和sender参数。
     正数表示好友，负数表示群。
     context表示消息来自哪个会话。要回复的话请发送到这里。
     sender表示消息的发送者。除了少数无来源的群通知事件，都会是正值。
     例如，私聊的场合，有context == sender > 0；群聊消息则满足context < 0 < sender。
-
-    通常，当插件处理了事件（例如回复了消息），就要返回真值。
-    为方便计，可以直接返回要回复的文字，与执行send函数无异。
-    返回None的场合，表示插件无法处理这个事件。该事件会轮替给下一个插件来处理。
     """
 
-    _name_cache: ClassVar[dict[int | tuple[int, int], str]] = {}
-    """在name方法内部使用的名称缓存。若想在对话中包含某人的名称，请使用name方法。
+    context: Entity
+    sender: Entity
+    text: str
+    message_id: int
 
-    从context到好友名或群聊名的映射，以及从(context, sender)到群名片的映射。
+
+EventHandlerT = TypeVar("EventHandlerT", bound=Callable[[Event], str | None])
+
+_on_command_handlers = defaultdict(list)
+
+
+def on_command(name: str) -> Callable[[EventHandlerT], EventHandlerT]:
+    """用装饰器@on_command("foo")来监听.foo这样的指令。
+    这样一来，只需要处理有格式命令的话，甚至不必编写on_message事件处理器就能做到。
     """
 
-    @staticmethod
-    def segments_to_str(message: list[object]) -> str:
-        r"""转换OneBot消息段列表到木鼠子码字符串。
+    def decorator(f: EventHandlerT) -> EventHandlerT:
+        _on_command_handlers[name].append(f)
+        return f
 
-        木鼠子码用"\a<控制序列 参数值 参数值>"表示。
-        通过使用莫名其妙的控制字符，使控制序列与常规文本冲突的可能性降到极低。
-        因为"< >"三个字符都被HTML占用，被列为URL中禁止使用的字符，因此参数是网址也没有问题。
-        当输入确实包含"\a"时就完蛋了，到那时再自求多福吧。
-
-        木鼠子码最大的好处是，将数据结构统一展平成字符串后，能在整条消息上使用正则表达式，
-        而且不太需要特别处理就能正确应对表情等元素。
-        OneBot协议定义的元素名满是中式英语，参数也不统一，因此不得不花费很多代码来转换。
-        "\a"是Python中为数不多的有单字母缩写且不属于正则表达式空白（r"\s"）的控制字符之一。
-        """
-        text = ""
-        for segment in message:
-            # https://napcat.napneko.icu/onebot/sement
-            match segment:
-                case {"type": "text", "data": {"text": x}}:
-                    assert isinstance(x, str)
-                    text += x.replace("\a", "")
-                case {"type": "face", "data": {"id": x}}:
-                    text += f"\a<Emoticon {x}>"
-                case {"type": "at", "data": {"qq": x}}:
-                    text += f"\a<Mention {x}>"  # 包含Mention all
-                case {"type": "image", "data": {"url": url}}:
-                    text += f"\a<Image {url}>"
-                case {"type": "record", "data": {"path": path}}:
-                    text += f"\a<Audio {path}>"
-                case {"type": "video", "data": {"url": url}}:
-                    text += f"\a<Video {url}>"
-                case {"type": "file", "data": {"file_id": x}}:
-                    text += f"\a<File {x}>"
-                case {"type": "poke"} as a:
-                    print("POKE还有其他属性吗？", a)
-                    text += "\a<Poke>"
-                case {"type": "json", "data": {"data": x}}:
-                    text += f"\a<Special>{x}"
-                case {"type": "reply", "data": {"id": x}}:
-                    text = f"\a<Quote {x}>" + text
-                case {"type": "forward", "data": {"content": x}}:
-                    print("收到合并转发", x)
-                    text += "\a<Begin quote>"
-                case {"type": x, "data": data}:
-                    print("警告：未知的消息元素，data字段 =", data)
-                    text += f"\a<{x}>"
-        return text
-
-    @staticmethod
-    def str_to_segments(text: str) -> list[dict[str, str | dict[str, object]]]:
-        """转换木鼠子码字符串到消息段列表。"""
-        segments: list[dict[str, str | dict[str, object]]] = []
-        for match in re.finditer(r"[^\a]+|\a<([^<>]*)>", text):
-            if args := match.group(1):
-                args = args.split(" ")
-            match args:
-                case None:
-                    segments.append({"type": "text", "data": {"text": match.group()}})
-                case ["Emoticon", x]:
-                    segments.append({"type": "face", "data": {"id": x}})
-                case ["Mention", str(x)]:
-                    segments.append({"type": "at", "data": {"qq": x}})
-                case ["Image", url]:
-                    segments.append({"type": "image", "data": {"url": url}})
-                case ["Audio", path]:
-                    segments = [{"type": "record", "data": {"path": path}}]
-                    break
-                case ["Video", url]:
-                    segments = [{"type": "video", "data": {"url": url}}]
-                    break
-                case ["File", x]:
-                    segments = [{"type": "file", "data": {"file_id": x}}]
-                    break
-                case ["Poke"]:
-                    segments = [{"type": "poke", "data": {}}]
-                    break
-                case ["Special", x]:
-                    segments = [{"type": "json", "data": {"data": text[match.end() :]}}]
-                    break
-                case ["Quote", x]:
-                    segments.append({"type": "reply", "data": {"id": x}})
-                case ["Begin quote"]:
-                    raise NotImplementedError("TODO")
-                case _:
-                    print("警告：无效的木鼠子码元素", args)
-                    segments.append({"type": "face", "data": {"id": "60"}})  # [咖啡]
-        return segments
-
-    @staticmethod
-    def gocqhttp(endpoint: str, data: dict = {}, **kwargs) -> dict:
-        """向go-cqhttp发送请求，并返回响应数据。
-
-        关于具体参数，必须参考go-cqhttp的API文档。
-        https://docs.go-cqhttp.org/api/
-
-        使用例：
-
-        - 发送私聊消息
-
-            gocqhttp("send_private_msg", user_id=114514, message="你好")
-
-        - 获取当前登录账号的昵称
-
-            gocqhttp("get_login_info")["nickname"]
-        """
-        kwargs.update(data)
-        data = httpx.post(f"http://127.0.0.1:5700/{endpoint}", json=kwargs).json()
-        if data["status"] == "failed":
-            raise RuntimeError(data["msg"], data["wording"])
-        return data["data"] if "data" in data else {}
-
-    @classmethod
-    def send(cls, context: int, message: str) -> None:
-        """发送消息。
-
-        :param context: 发送目标，正数表示好友，负数表示群。
-        :param message: 要发送的消息内容，富文本用木鼠子码表示。
-        """
-        cls.gocqhttp(
-            "send_msg",
-            {"user_id" if context >= 0 else "group_id": abs(context)},
-            message=cls.str_to_segments(message),
-        )
-
-    @classmethod
-    def send_file(cls, context: int, filename: str, name: str | None = None) -> None:
-        """发送文件。
-
-        :param context: 发送目标。
-        :param filename: 本机文件路径。
-        :param name: 发送时显示的文件名。默认为路径中指定的文件名。
-        """
-        name = name or os.path.basename(filename)
-        filename = os.path.realpath(filename)
-        if context >= 0:
-            cls.gocqhttp("upload_private_file", user_id=context, file=filename, name=name)
-        else:
-            cls.gocqhttp("upload_group_file", group_id=-context, file=filename, name=name)
-
-    def on_event(self, context: int, sender: int, data: dict[str, Any]) -> bool:
-        """接收事件并调用对应的事件处理方法。
-
-        :param data: 来自go-cqhttp的上报数据。
-        :returns: True表示事件已受理，不应再交给其他插件；False表示应继续由其他插件处理本事件。
-        """
-        result: object = None
-        # https://napcat.napneko.icu/onebot/event
-        if data["post_type"] == "message":
-            # 这个类型的上报只有好友消息和群聊消息两种。
-            message = self.segments_to_str(data["message"])
-            result = self.dispatch_command(context, sender, message, data["message_id"])
-        elif data["post_type"] == "request":
-            # 这个类型的上报只有申请添加好友和申请加入群聊两种。
-            result = self.on_admission(context, sender, data["comment"])
-            if result is not None:
-                if data["request_type"] == "friend":
-                    self.gocqhttp("set_friend_add_request", flag=data["flag"], approve=result)
-                elif data["request_type"] == "group":
-                    self.gocqhttp(
-                        "set_group_add_request",
-                        flag=data["flag"],
-                        type=data["sub_type"],
-                        approve=result,
-                    )
-                result = True
-        elif data["post_type"] == "meta_event":
-            # 这个类型的上报包含心跳等杂项事件。仅OneBot文档中有说明，go-cqhttp的文档中没有说明。
-            result = self.on_interval()
-        # 其余所有事件都是通知上报。
-        elif data["notice_type"] in ("friend_recall", "group_recall"):
-            message = Plugin.gocqhttp("get_msg", message_id=data["message_id"])
-            message = str(message["raw_message"]) if "raw_message" in message else ""
-            result = self.on_message_deleted(context, sender, message, data["message_id"])
-        elif data["notice_type"] == "offline_file":
-            result = self.on_file(
-                context,
-                sender,
-                data["file"]["name"],
-                data["file"]["size"],
-                data["file"]["url"],
-            )
-        elif data["notice_type"] == "group_upload":
-            url = Plugin.gocqhttp(
-                "get_group_file_url",
-                group_id=-context,
-                file_id=data["file"]["id"],
-                busid=data["file"]["busid"],
-            )["url"]
-            result = self.on_file(context, sender, data["file"]["name"], data["file"]["size"], url)
-        # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
-        # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。
-        if context and result is not None and result is not True:
-            self.send(context, format(result))
-        return result is not None
-
-    @overload
-    def name(self, context: int, sender: int) -> str:
-        """获取各种用户的名称的方法。如果context是群聊，则尝试获取群名片。
-
-        有Python侧一级缓存和go-cqhttp侧二级缓存，因此可以安心频繁调用本方法。
-        """
-
-    @overload
-    def name(self, context: tuple[int, int]) -> str: ...
-
-    @overload
-    def name(self, context: int) -> str:
-        """获取好友名（正参数）或群聊名（负参数）。
-
-        有Python侧一级缓存和go-cqhttp侧二级缓存，因此可以安心频繁调用本方法。
-        """
-
-    def name(self, context, sender=None) -> str:
-        if sender is not None:
-            return self.name((context, sender))
-        if context in self._name_cache:
-            return self._name_cache[context]
-        if isinstance(context, int):
-            if context >= 0:
-                for response in self.gocqhttp("get_friend_list"):
-                    self._name_cache[response["user_id"]] = response["nickname"]
-                name = self._name_cache.get(context, "")
-            else:
-                response = self.gocqhttp("get_group_info", group_id=-context)
-                name = response["group_name"]
-        else:
-            if context[0] >= 0:
-                name = self.name(context[1])
-            else:
-                response = self.gocqhttp("get_group_member_info", group_id=-context[0], user_id=context[1])
-                name = response.get("card") or response["nickname"]
-        self._name_cache[context] = name
-        return name
-
-    def dispatch_command(self, context: int, sender: int, text: str, message_id: int) -> object:
-        """找到并调用某个on_command_×××，抑或是on_message。
-
-        方法名的匹配是模糊的，但要求方法名必须为规范形式。
-        具体参照humanity.normalize函数，最重要的是必须是小写。
-        由于__getattr__等魔法方法的存在，不可能列出对象支持的方法列表，故当方法名不规范时，无法给出任何警告。
-
-        如果同时定义了on_message、on_command_foo、on_command_foo_bar，最具体的函数会被调用。
-
-        - ".foo bar" → on_command_foo_bar
-        - ".foo baz" → on_command_foo
-        - ".bar" → on_message
-
-        on_command_×××方法的参数必须支持按参数名传入（关键字参数），且正确标注类型。
-        有名为context、sender、text、message_id的参数时，对应的值会被传入。
-        """
-        # 到底为什么会收到有\r\n的消息啊？
-        text.replace("\r\n", "\n")
-        parts = humanity.tokenize_command_name(text)
-        while parts:
-            name = "".join(parts)
-            f = getattr(self, "on_command_" + name, None)
-            if callable(f):
-                try:
-                    kwargs = humanity.parse_command(
-                        {
-                            parameter.name: (
-                                parameter.annotation,
-                                parameter.default is not inspect.Parameter.empty,
-                            )
-                            for parameter in inspect.signature(f).parameters.values()
-                            if parameter.annotation is not inspect.Parameter.empty
-                        },
-                        {
-                            "context": context,
-                            "sender": sender,
-                            "text": text,
-                            "message_id": message_id,
-                        },
-                        # 在原始字符串中找到命令名之后的部分。
-                        # 证明一下这个二分法数据的单调性？
-                        # 平时做算法题怎么都想不到二分答案——而且这除了用来做算法题以外有什么用啊！
-                        # 结果真的在实际开发中用到了这种思路，这合理吗？
-                        text[
-                            bisect_left(
-                                range(min(111, len(text))),
-                                name,
-                                lo=1,
-                                key=lambda i: humanity.normalize(text[1:i]),
-                            ) :
-                        ].strip(),
-                    )
-                except humanity.CommandSyntaxError as e:
-                    return e.args[0] if e.args else inspect.getdoc(f)
-                return f(**kwargs)
-            # 从长到短，一段一段截下，再尝试取用属性。
-            parts.pop()
-        return self.on_message(context, sender, text, message_id)
-
-    def on_message(self, context: int, sender: int, text: str, message_id: int):
-        """当收到消息时执行此函数。
-
-        如果不知道参数和返回值的含义的话，请看Plugin类的说明。
-
-        因为on_message事件太常用了，扩展了以下方便用法。
-
-        【关于命令自动解析】
-        只要定义函数on_command_foo(self, …)，就能处理.foo这样的指令。
-        这样一来，只需要处理有格式命令的话，甚至不必编写on_message事件处理器就能做到。
-        方法的命名、参数、优先关系等细节请参照dispatch_command方法的文档。
-        参数解析的细节请参照humanity.parse_command函数的文档。
-        可以在on_command_×××中使用yield（参照下述对话流程功能）。
-
-        【关于对话流程】
-        可以像阻塞式控制台程序一样编写事件处理程序，在需要向用户提问的交互式场合非常方便。
-
-            print("你输入的是" + input("请输入文字"))
-            → return "你输入的是" + (yield "请输入文字")
-
-        这种写法使用了无法持久化保存的Python生成器，也就是说，进程重启之后程序的执行状态就会消失。
-        此外，超过一天没有下文的对话流程会被直接删除。
-        """
-
-    def on_message_deleted(self, context: int, sender: int, text: str, message_id: int):
-        """消息被撤回。"""
-
-    def on_file(self, context: int, sender: int, filename: str, size: int, url: str):
-        """接收到离线文件或群有新文件。"""
-
-    def on_admission(self, context: int, sender: int, text: str) -> bool | None:
-        """收到了添加好友的请求或加入群聊的请求。
-
-        返回True接受，False拒绝，None无视并留给下一个插件处理。
-        """
-
-    def on_interval(self) -> None:
-        """每隔不到一分钟，此函数就会被调用。用于实现定时功能。
-
-        因为空泛地不针对任何人，即使想通过返回值快速回复也不知道会回复到何处。必须通过send方法来发出消息。
-        因为插件不应该剥夺其他插件定时处理的能力，所以也不允许返回真值。
-        这样一来，这个函数只能返回None了。
-        """
+    return decorator
 
 
-class NameCacheUpdater(Plugin):
-    """与Plugin基类联合工作的必备插件。"""
-
-    def on_event(self, context: int, sender: int, data: dict[str, Any]) -> bool:
-        # 如果有详细的发送者信息，更新名称缓存。
-        if "sender" in data:
-            nickname = data["sender"].get("nickname", "")
-            self._name_cache[sender] = self._name_cache[sender, sender] = nickname
-            self._name_cache[context, sender] = data["sender"].get("card") or nickname
-        return False
+_on_message_handlers = []
 
 
-class Logger(Plugin):
+def on_message(f: EventHandlerT) -> EventHandlerT:
+    """当收到消息时执行此函数。"""
+    _on_message_handlers.append(f)
+    return f
+
+
+@on_message
+def _(event: Event):
     """调试用，在控制台中输出消息的内部表示。"""
-
-    def on_message(self, context: int, sender: int, text: str, message_id: int):
-        print(context, sender, repr(text), message_id)
+    print(repr(event))
 
 
-class HelpProvider(Plugin):
+@on_command("help")
+def _on_command_help(event: Event):
     """提供.help命令的插件。@Plugin.documented默认将帮助信息置于此处。"""
-
-    def on_command_help(self, _: Never):
-        pass
+    pass
 
 
-def documented(
-    under: Callable | None = HelpProvider.on_command_help,
-) -> Callable[[CallableT], CallableT]:
+def documented(under: Callable | None = _on_command_help) -> Callable[[CallableT], CallableT]:
     """使用此装饰器添加单条命令帮助的第一行到帮助索引命令中。
 
     要添加到总目录.help中：
@@ -428,39 +333,6 @@ def documented(
             .partition("\n")[0]
             .strip()
         )
-        return f
-
-    return decorator
-
-
-@dataclass
-class Entity:
-    id: int
-    name: str
-
-    def __index__(self) -> int:
-        return self.id
-
-    def __format__(self, format_spec: str, /) -> str:
-        return format(self.name, format_spec)
-
-
-@dataclass
-class Event:
-    context: Entity
-    sender: Entity
-    text: str
-
-
-EventHandlerT = TypeVar("EventHandlerT", bound=Callable[[Event], str | None])
-
-
-def on_command(name: str) -> Callable[[EventHandlerT], EventHandlerT]:
-    """用装饰器@on_command("foo")来监听.foo这样的指令。
-    这样一来，只需要处理有格式命令的话，甚至不必编写on_message事件处理器就能做到。
-    """
-
-    def decorator(f: EventHandlerT) -> EventHandlerT:
         return f
 
     return decorator
