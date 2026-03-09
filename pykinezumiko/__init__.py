@@ -5,12 +5,25 @@ import time
 from bisect import bisect_left
 from dataclasses import dataclass
 from typing import Any, Callable, ClassVar, Never, TypeVar, overload
+import inspect
+from collections import defaultdict
 
 import httpx
 
-from . import humanity
+from . import conf, humanity
 
 CallableT = TypeVar("CallableT", bound=Callable)
+
+
+def scrub(text: str) -> str:
+    r"""删除不应出现在人类产生的文本中的字符。
+
+    会删除除了换行符（"\n"）和制表符（"\t"）以外的所有控制字符和孤代理对。
+
+    因为会删除"\a"，返回的字符串可安全地作为纯文本而不会包含木鼠子码控制序列。
+    但是，返回值可能包含"< >"等字符，因此不能直接作为木鼠子码控制序列参数使用。
+    """
+    return re.sub(r"[\x00-\x08\x0b-x1f\x7f-\x9f\ud800-\udfff]+", text, "")
 
 
 class Bot:
@@ -130,150 +143,12 @@ class Bot:
         return name
 
 
-def on_event(self, context: int, sender: int, data: dict[str, Any]) -> bool:
-    """接收事件并调用对应的事件处理方法。
-
-    :param data: 来自go-cqhttp的上报数据。
-    :returns: True表示事件已受理，不应再交给其他插件；False表示应继续由其他插件处理本事件。
-    """
-    result: object = None
-    # https://napcat.napneko.icu/onebot/event
-    match data:
-        case {"post_type": "message", "message": list(message), "message_id": id}:
-            # 这个类型的上报只有好友消息和群聊消息两种。
-            message = self.segments_to_str(data["message"])
-            result = self.dispatch_message(context, sender, message, id)
-        case {"request_type": ("friend" | "group") as request_type, "comment": message, "flag": flag}:
-            # 这个类型的上报只有申请添加好友和申请加入群聊两种。
-            result = self.on_admission(context, sender, message)
-            if result is not None:
-                if request_type == "friend":
-                    self.call("set_friend_add_request", flag=flag, approve=result)
-                else:
-                    self.call("set_group_add_request", flag=flag, type=data["sub_type"], approve=result)
-                result = True
-        case {"notice_type": "friend_recall" | "group_recall"}:
-            message = self.call("get_msg", message_id=data["message_id"])
-            message = str(message["raw_message"]) if "raw_message" in message else ""
-            result = self.on_message_deleted(context, sender, message, data["message_id"])
-        case {"notice_type": "offline_file", "file": {"name": name, "size": size, "url": url}}:
-            result = self.dispatch_message(context, sender, f"\a<File {url}#size={size}>{name}", 0)
-        case {"notice_type": "group_upload", "file": {"name": name, "size": size, "id": id, "busid": busid}}:
-            url = self.call("get_group_file_url", group_id=-context, file_id=id, busid=busid)["url"]
-            result = self.dispatch_message(context, sender, f"\a<File {url}#size={size}>{name}", 0)
-    # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
-    # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。
-    if context and result is not None and result is not True:
-        self.send(context, format(result))
-    return result is not None
-
-
-def dispatch_message(self, context: int, sender: int, message: str | list[dict], message_id: int) -> object:
-    """找到并调用某个on_command_×××，抑或是on_message。
-
-    方法名的匹配是模糊的，但要求方法名必须为规范形式。
-    具体参照humanity.normalize函数，最重要的是必须是小写。
-    由于__getattr__等魔法方法的存在，不可能列出对象支持的方法列表，故当方法名不规范时，无法给出任何警告。
-
-    如果同时定义了on_message、on_command_foo、on_command_foo_bar，最具体的函数会被调用。
-
-    - ".foo bar" → on_command_foo_bar
-    - ".foo baz" → on_command_foo
-    - ".bar" → on_message
-
-    on_command_×××方法的参数必须支持按参数名传入（关键字参数），且正确标注类型。
-    有名为context、sender、text、message_id的参数时，对应的值会被传入。
-    """
-
-    if isinstance(message, str):
-        text = message
-    else:
-        r"""转换OneBot消息段列表到木鼠子码字符串。
-
-        木鼠子码用"\a<控制序列 参数值 参数值>"表示。
-        通过使用莫名其妙的控制字符，使控制序列与常规文本冲突的可能性降到极低。
-        因为"< >"三个字符都被HTML占用，被列为URL中禁止使用的字符，因此参数是网址也没有问题。
-        当输入确实包含"\a"时就完蛋了，到那时再自求多福吧。
-
-        木鼠子码最大的好处是，将数据结构统一展平成字符串后，能在整条消息上使用正则表达式，
-        而且不太需要特别处理就能正确应对表情等元素。
-        OneBot协议定义的元素名满是中式英语，参数也不统一，因此不得不花费很多代码来转换。
-        "\a"是Python中为数不多的有单字母缩写且不属于正则表达式空白（r"\s"）的控制字符之一。
-        """
-        text = ""
-        for segment in message:
-            # https://napcat.napneko.icu/onebot/sement
-            match segment:
-                case {"type": "text", "data": {"text": x}}:
-                    assert isinstance(x, str)
-                    text += x.replace("\a", "")
-                case {"type": "face", "data": {"id": x}}:
-                    text += f"\a<Emoticon {x}>"
-                case {"type": "at", "data": {"qq": x}}:
-                    text += f"\a<Mention {x}>"  # 包含Mention all
-                case {"type": "image", "data": {"url": url}}:
-                    text += f"\a<Image {url}>"
-                case {"type": "record", "data": {"path": path}}:
-                    text += f"\a<Audio {path}>"
-                case {"type": "video", "data": {"url": url}}:
-                    text += f"\a<Video {url}>"
-                case {"type": "file", "data": {"file_id": x}}:
-                    text += f"\a<File {x}>"
-                case {"type": "poke"} as a:
-                    print("POKE还有其他属性吗？", a)
-                    text += "\a<Poke>"
-                case {"type": "json", "data": {"data": x}}:
-                    text += f"\a<Special>{x}"
-                case {"type": "reply", "data": {"id": x}}:
-                    text = f"\a<Quote {x}>" + text
-                case {"type": "forward", "data": {"content": x}}:
-                    print("收到合并转发", x)
-                    text += "\a<Begin quote>"
-                case {"type": x, "data": data}:
-                    print("警告：未知的消息元素，data字段 =", data)
-                    text += f"\a<{x}>"
-    # 到底为什么会收到有\r\n的消息啊？
-    text.replace("\r\n", "\n")
-    parts = humanity.tokenize_command_name(text)
-    while parts:
-        name = "".join(parts)
-        f = getattr(self, "on_command_" + name, None)
-        if callable(f):
-            try:
-                kwargs = humanity.parse_command(
-                    {
-                        parameter.name: (
-                            parameter.annotation,
-                            parameter.default is not inspect.Parameter.empty,
-                        )
-                        for parameter in inspect.signature(f).parameters.values()
-                        if parameter.annotation is not inspect.Parameter.empty
-                    },
-                    {
-                        "context": context,
-                        "sender": sender,
-                        "text": text,
-                        "message_id": message_id,
-                    },
-                    # 在原始字符串中找到命令名之后的部分。
-                    # 证明一下这个二分法数据的单调性？
-                    # 平时做算法题怎么都想不到二分答案——而且这除了用来做算法题以外有什么用啊！
-                    # 结果真的在实际开发中用到了这种思路，这合理吗？
-                    text[
-                        bisect_left(
-                            range(min(111, len(text))),
-                            name,
-                            lo=1,
-                            key=lambda i: humanity.normalize(text[1:i]),
-                        ) :
-                    ].strip(),
-                )
-            except humanity.CommandSyntaxError as e:
-                return e.args[0] if e.args else inspect.getdoc(f)
-            return f(**kwargs)
-        # 从长到短，一段一段截下，再尝试取用属性。
-        parts.pop()
-    return self.on_message(context, sender, text, message_id)
+@dataclass
+class Event:
+    context: int
+    sender: int
+    text: str
+    id: int
 
 
 class Plugin:
@@ -298,7 +173,7 @@ class Plugin:
     def __init__(self, bot: Bot):
         self.bot = bot
 
-    def on_message(self, context: int, sender: int, text: str, message_id: int):
+    def on_message(self, event: Event):
         """当收到消息时执行此函数。
 
         如果不知道参数和返回值的含义的话，请看Plugin类的说明。
@@ -322,14 +197,209 @@ class Plugin:
         此外，超过一天没有下文的对话流程会被直接删除。
         """
 
-    def on_message_deleted(self, context: int, sender: int, text: str, message_id: int):
+    def on_message_deleted(self, event: Event):
         """消息被撤回。"""
 
-    def on_admission(self, context: int, sender: int, text: str) -> bool | None:
+    def on_admission(self, event: Event) -> bool | None:
         """收到了添加好友的请求或加入群聊的请求。
 
         返回True接受，False拒绝，None无视并留给下一个插件处理。
         """
+
+
+class Dispatcher:
+    def __init__(self, bot: Bot, plugins: list[Plugin]):
+        self.bot = bot
+        event_handlers = defaultdict[str, list[Callable]]()
+        command_handlers = defaultdict[str, list[Callable]]()
+        for plugin in plugins:
+            for name, handler in inspect.getmembers(plugin, callable):
+                if name.startswith("on_command_"):
+                    command_handlers[humanity.normalize(name.removeprefix("on_command_"))].append(handler)
+                elif name.startswith("on_"):
+                    event_handlers[name].append(handler)
+        self.event_handlers = dict(event_handlers)
+        self.command_handlers = sorted(command_handlers.items())
+
+    def call_handlers(self, handlers: list[Callable], event: Event):
+        result: object = None
+        for handler in handlers:
+            if result := handler():
+                break
+        # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
+        # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。
+        if event.context and result is not None:
+            self.bot.send(event.context, format(result))
+
+    def on_event(self, data: dict[str, Any]):
+        """接收事件并调用对应的事件处理方法。
+
+        :param data: 来自OneBot实现的上报数据。
+        """
+        # 为了原路反馈异常信息，在局部变量中记录消息上下文。
+        context = 0
+        try:
+            # 从OneBot事件数据中提取context和sender。
+            sender = int(data.get("user_id", 0))
+            context = -int(data["group_id"]) if "group_id" in data else sender
+
+            result: object = None
+            # https://napcat.napneko.icu/onebot/event
+            match data:
+                case {"post_type": "message", "message": list(message), "message_id": id}:
+                    # 这个类型的上报只有好友消息和群聊消息两种。
+                    result = self.dispatch_message(context, sender, message, id)
+                case {"request_type": ("friend" | "group") as request_type, "comment": message, "flag": flag}:
+                    # 这个类型的上报只有申请添加好友和申请加入群聊两种。
+                    print("收到申请", data)
+                    event = Event(context, sender, scrub(message), 0)
+                    for handler in self.event_handlers["on_admission"]:
+                        result = handler(event)
+                        if result is not None:
+                            print("申请处理结果为", result)
+                            self.bot.call(
+                                "set_friend_add_request" if request_type == "friend" else "set_group_add_request",
+                                flag=flag,
+                                type=data.get("sub_type"),
+                                approve=bool(result),
+                            )
+                            break
+                    else:
+                        print("未处理申请")
+                case {"notice_type": "friend_recall" | "group_recall"}:
+                    message = self.bot.call("get_msg", message_id=data["message_id"])
+                    message = str(message.get("message", ""))
+                    result = self.call_handlers(
+                        self.event_handlers["on_message_deleted"],
+                        Event(context, sender, message, data["message_id"]),
+                    )
+                case {"notice_type": "offline_file", "file": {"name": name, "size": size, "url": url}}:
+                    result = self.dispatch_message(context, sender, f"\a<File {url}#size={size}>{name}", 0)
+                case {
+                    "notice_type": "group_upload",
+                    "file": {"name": name, "size": size, "id": id, "busid": busid},
+                }:
+                    url = self.bot.call("get_group_file_url", group_id=-context, file_id=id, busid=busid)["url"]
+                    result = self.dispatch_message(context, sender, f"\a<File {url}#size={size}>{name}", 0)
+        except Exception as e:
+            tb = e.__traceback__
+            assert tb
+            while tb.tb_next:
+                tb = tb.tb_next
+            tb = tb.tb_frame
+            message = f"来自 {tb.f_code.co_filename}:{tb.f_lineno}:{tb.f_code.co_name} 的 {type(e).__name__}：{e}"
+            if context:
+                self.bot.send(context, f"执行时发生了下列异常。\n{message}")
+            else:
+                self.bot.send(conf.BACKSTAGE, f"处理无来源事件时发生了下列异常。\n{message}")
+            # 再行抛出错误，以便打印错误堆栈到控制台。
+            raise
+
+    def dispatch_message(self, context: int, sender: int, message: str | list[dict], message_id: int) -> object:
+        """找到并调用某个on_command_×××，抑或是on_message。
+
+        方法名的匹配是模糊的，但要求方法名必须为规范形式。
+        具体参照humanity.normalize函数，最重要的是必须是小写。
+        由于__getattr__等魔法方法的存在，不可能列出对象支持的方法列表，故当方法名不规范时，无法给出任何警告。
+
+        如果同时定义了on_message、on_command_foo、on_command_foo_bar，最具体的函数会被调用。
+
+        - ".foo bar" → on_command_foo_bar
+        - ".foo baz" → on_command_foo
+        - ".bar" → on_message
+
+        on_command_×××方法的参数必须支持按参数名传入（关键字参数），且正确标注类型。
+        有名为context、sender、text、message_id的参数时，对应的值会被传入。
+        """
+
+        if isinstance(message, str):
+            text = message
+        else:
+            r"""转换OneBot消息段列表到木鼠子码字符串。
+
+            木鼠子码用"\a<控制序列 参数值 参数值>"表示。
+            通过使用莫名其妙的控制字符，使控制序列与常规文本冲突的可能性降到极低。
+            因为"< >"三个字符都被HTML占用，被列为URL中禁止使用的字符，因此参数是网址也没有问题。
+            当输入确实包含"\a"时就完蛋了，到那时再自求多福吧。
+
+            木鼠子码最大的好处是，将数据结构统一展平成字符串后，能在整条消息上使用正则表达式，
+            而且不太需要特别处理就能正确应对表情等元素。
+            OneBot协议定义的元素名满是中式英语，参数也不统一，因此不得不花费很多代码来转换。
+            "\a"是Python中为数不多的有单字母缩写且不属于正则表达式空白（r"\s"）的控制字符之一。
+            """
+            text = ""
+            for segment in message:
+                # https://napcat.napneko.icu/onebot/sement
+                match segment:
+                    case {"type": "text", "data": {"text": str(x)}}:
+                        text += x
+                    case {"type": "face", "data": {"id": x}}:
+                        text += f"\a<Emoticon {x}>"
+                    case {"type": "at", "data": {"qq": x}}:
+                        text += f"\a<Mention {x}>"  # 包含Mention all
+                    case {"type": "image", "data": {"url": url}}:
+                        text += f"\a<Image {url}>"
+                    case {"type": "record", "data": {"path": path}}:
+                        text += f"\a<Audio {path}>"
+                    case {"type": "video", "data": {"url": url}}:
+                        text += f"\a<Video {url}>"
+                    case {"type": "file", "data": {"file_id": x}}:
+                        text += f"\a<File {x}>"
+                    case {"type": "poke"} as a:
+                        print("POKE还有其他属性吗？", a)
+                        text += "\a<Poke>"
+                    case {"type": "json", "data": {"data": x}}:
+                        text += f"\a<Special>{x}"
+                    case {"type": "reply", "data": {"id": x}}:
+                        text = f"\a<Quote {x}>" + text
+                    case {"type": "forward", "data": {"content": x}}:
+                        print("收到合并转发", x)
+                        text += "\a<Begin quote>"
+                    case {"type": x, "data": data}:
+                        print("警告：未知的消息元素，data字段 =", data)
+                        text += f"\a<{x}>"
+        # 到底为什么会收到有\r\n的消息啊？
+        text = scrub(text)
+        parts = humanity.tokenize_command_name(text)
+        while parts:
+            name = "".join(parts)
+            f = getattr(self, name, None)
+            if callable(f):
+                try:
+                    kwargs = humanity.parse_command(
+                        {
+                            parameter.name: (
+                                parameter.annotation,
+                                parameter.default is not inspect.Parameter.empty,
+                            )
+                            for parameter in inspect.signature(f).parameters.values()
+                            if parameter.annotation is not inspect.Parameter.empty
+                        },
+                        {
+                            "context": context,
+                            "sender": sender,
+                            "text": text,
+                            "message_id": message_id,
+                        },
+                        # 在原始字符串中找到命令名之后的部分。
+                        # 证明一下这个二分法数据的单调性？
+                        # 平时做算法题怎么都想不到二分答案——而且这除了用来做算法题以外有什么用啊！
+                        # 结果真的在实际开发中用到了这种思路，这合理吗？
+                        text[
+                            bisect_left(
+                                range(min(111, len(text))),
+                                name,
+                                lo=1,
+                                key=lambda i: humanity.normalize(text[1:i]),
+                            ) :
+                        ].strip(),
+                    )
+                except humanity.CommandSyntaxError as e:
+                    return e.args[0] if e.args else inspect.getdoc(f)
+                return f(**kwargs)
+            # 从长到短，一段一段截下，再尝试取用属性。
+            parts.pop()
+        return self.call_handlers(self.event_handlers["on_message"], Event(context, sender, text, message_id))
 
 
 class NameCacheUpdater(Plugin):
@@ -347,8 +417,8 @@ class NameCacheUpdater(Plugin):
 class Logger(Plugin):
     """调试用，在控制台中输出消息的内部表示。"""
 
-    def on_message(self, context: int, sender: int, text: str, message_id: int):
-        print(context, sender, repr(text), message_id)
+    def on_message(self, event: Event):
+        print(repr(event))
 
 
 class HelpProvider(Plugin):
@@ -387,11 +457,3 @@ def documented(
         return f
 
     return decorator
-
-
-@dataclass
-class Event:
-    context: int
-    sender: int
-    text: str
-    id: int

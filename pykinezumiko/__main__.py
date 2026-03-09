@@ -1,3 +1,8 @@
+"""主程序。
+
+会自动加载plugins目录下的所有模块。
+"""
+
 import importlib
 import pkgutil
 
@@ -5,52 +10,54 @@ import uvicorn
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
+from starlette.endpoints import HTTPEndpoint
 from starlette.routing import Route
 
-from . import Plugin, conf, plugins
+from . import Bot, conf, Plugin, plugins as plugins_module, Dispatcher
 
-for m in pkgutil.iter_modules(plugins.__path__):
-    print(f"加载插件 {m.name}")
-    importlib.import_module(f"{plugins.__name__}.{m.name}")
+bot = Bot()
+
+for p in sorted(m.name for m in pkgutil.iter_modules(plugins_module.__path__)):
+    print(f"加载插件模块 {p}")
+    importlib.import_module(f"{plugins_module.__name__}.{p}")
 
 
-async def root(request: Request) -> Response:
-    # GET请求来自浏览器。
-    if request.method == "GET":
-        return PlainTextResponse("消息处理端已启动。")
+# 虽然只是加载而没有将模块留下，但是其中的类皆已成功定义。
+# 靠深度优先搜索找出所有继承了Plugin但没有子类的类，它们是要实例化的插件类。
+def leaf_subclasses(cls: type) -> list[type]:
+    """找出指定类的所有叶子类。"""
+    return [s for c in cls.__subclasses__() for s in leaf_subclasses(c)] or [cls]
 
-    # POST请求来自OneBot实现。
-    # 为了原路反馈异常信息，在局部变量中记录消息上下文。
-    context = 0
 
-    try:
-        data = await request.json()
-        # 从OneBot事件数据中提取context和sender。
-        sender = int(data.get("user_id", 0))
-        context = -int(data["group_id"]) if "group_id" in data else sender
-        # 易碎的细节：all和any短路求值。
-        any(p.on_event(context, sender, data) for p in plugins)
-    except Exception as e:
-        tb = e.__traceback__
-        assert tb
-        while tb.tb_next:
-            tb = tb.tb_next
-        tb = tb.tb_frame
-        message = f"来自 {tb.f_code.co_filename}:{tb.f_lineno}:{tb.f_code.co_name} 的 {type(e).__name__}：{e}"
-        if context:
-            Plugin.send(context, f"执行时发生了下列异常。\n{message}")
-        else:
-            Plugin.send(conf.BACKSTAGE, f"处理无来源事件时发生了下列异常。\n{message}")
-        # 再行抛出错误，以便打印错误堆栈到控制台。
-        raise
-    return PlainTextResponse("")
+plugins: list[Plugin] = []
+for p in leaf_subclasses(Plugin):
+    print(f"加载插件类 {p.__name__}")
+    plugins.append(p(bot))
+
+# 上述过程中易碎的细节：
+# • 插件模块相互独立，从而按导入顺序加载。
+# • Python 3.4起，__subclasses__按字典键的顺序返回子类列表。
+# • Python 3.6起，字典按加入顺序迭代键。
+# • Python 3.9起，文档明确指出__subclasses__按子类定义先后顺序返回子类列表。
+# • leaf_subclasses函数返回列表从而保持顺序。
+
+dispatcher = Dispatcher(bot, plugins)
+
+
+class Root(HTTPEndpoint):
+    async def get(request: Request) -> Response:
+        return PlainTextResponse(f"消息处理端已启动。{request.headers = !r}")
+
+    async def post(request: Request) -> Response:
+        dispatcher.on_event(await request.json())
+        return PlainTextResponse("")
 
 
 uvicorn.Server(
     uvicorn.Config(
         Starlette(
             routes=[
-                Route("/", root, methods=["GET", "POST"]),
+                Route("/", Root),
             ]
         ),
         port=5701,
