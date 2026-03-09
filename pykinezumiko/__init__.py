@@ -404,22 +404,11 @@ def documented(
 
 
 @dataclass
-class Entity:
-    id: int
-    name: str
-
-    def __index__(self) -> int:
-        return self.id
-
-    def __format__(self, format_spec: str, /) -> str:
-        return format(self.name, format_spec)
-
-
-@dataclass
 class Event:
-    context: Entity
-    sender: Entity
+    context: int
+    sender: int
     text: str
+    id: int
 
 
 EventHandlerT = TypeVar("EventHandlerT", bound=Callable[[Event], str | None])
