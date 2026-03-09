@@ -127,7 +127,7 @@ class Plugin:
         return segments
 
     @staticmethod
-    def gocqhttp(endpoint: str, data: dict = {}, **kwargs) -> dict:
+    def onebot(endpoint: str, data: dict = {}, **kwargs) -> dict:
         """向go-cqhttp发送请求，并返回响应数据。
 
         关于具体参数，必须参考go-cqhttp的API文档。
@@ -156,7 +156,7 @@ class Plugin:
         :param context: 发送目标，正数表示好友，负数表示群。
         :param message: 要发送的消息内容，富文本用木鼠子码表示。
         """
-        cls.gocqhttp(
+        cls.onebot(
             "send_msg",
             {"user_id" if context >= 0 else "group_id": abs(context)},
             message=cls.str_to_segments(message),
@@ -173,9 +173,9 @@ class Plugin:
         name = name or os.path.basename(filename)
         filename = os.path.realpath(filename)
         if context >= 0:
-            cls.gocqhttp("upload_private_file", user_id=context, file=filename, name=name)
+            cls.onebot("upload_private_file", user_id=context, file=filename, name=name)
         else:
-            cls.gocqhttp("upload_group_file", group_id=-context, file=filename, name=name)
+            cls.onebot("upload_group_file", group_id=-context, file=filename, name=name)
 
     def on_event(self, context: int, sender: int, data: dict[str, Any]) -> bool:
         """接收事件并调用对应的事件处理方法。
@@ -185,48 +185,29 @@ class Plugin:
         """
         result: object = None
         # https://napcat.napneko.icu/onebot/event
-        if data["post_type"] == "message":
-            # 这个类型的上报只有好友消息和群聊消息两种。
-            message = self.segments_to_str(data["message"])
-            result = self.dispatch_command(context, sender, message, data["message_id"])
-        elif data["post_type"] == "request":
-            # 这个类型的上报只有申请添加好友和申请加入群聊两种。
-            result = self.on_admission(context, sender, data["comment"])
-            if result is not None:
-                if data["request_type"] == "friend":
-                    self.gocqhttp("set_friend_add_request", flag=data["flag"], approve=result)
-                elif data["request_type"] == "group":
-                    self.gocqhttp(
-                        "set_group_add_request",
-                        flag=data["flag"],
-                        type=data["sub_type"],
-                        approve=result,
-                    )
-                result = True
-        elif data["post_type"] == "meta_event":
-            # 这个类型的上报包含心跳等杂项事件。仅OneBot文档中有说明，go-cqhttp的文档中没有说明。
-            result = self.on_interval()
-        # 其余所有事件都是通知上报。
-        elif data["notice_type"] in ("friend_recall", "group_recall"):
-            message = Plugin.gocqhttp("get_msg", message_id=data["message_id"])
-            message = str(message["raw_message"]) if "raw_message" in message else ""
-            result = self.on_message_deleted(context, sender, message, data["message_id"])
-        elif data["notice_type"] == "offline_file":
-            result = self.on_file(
-                context,
-                sender,
-                data["file"]["name"],
-                data["file"]["size"],
-                data["file"]["url"],
-            )
-        elif data["notice_type"] == "group_upload":
-            url = Plugin.gocqhttp(
-                "get_group_file_url",
-                group_id=-context,
-                file_id=data["file"]["id"],
-                busid=data["file"]["busid"],
-            )["url"]
-            result = self.on_file(context, sender, data["file"]["name"], data["file"]["size"], url)
+        match data:
+            case {"post_type": "message", "message": message, "message_id": id}:
+                # 这个类型的上报只有好友消息和群聊消息两种。
+                message = self.segments_to_str(data["message"])
+                result = self.dispatch_message(context, sender, message, id)
+            case {"request_type": ("friend" | "group") as request_type, "comment": message, "flag": flag}:
+                # 这个类型的上报只有申请添加好友和申请加入群聊两种。
+                result = self.on_admission(context, sender, message)
+                if result is not None:
+                    if request_type == "friend":
+                        self.onebot("set_friend_add_request", flag=flag, approve=result)
+                    else:
+                        self.onebot("set_group_add_request", flag=flag, type=data["sub_type"], approve=result)
+                    result = True
+            case {"notice_type": "friend_recall" | "group_recall"}:
+                message = self.onebot("get_msg", message_id=data["message_id"])
+                message = str(message["raw_message"]) if "raw_message" in message else ""
+                result = self.on_message_deleted(context, sender, message, data["message_id"])
+            case {"notice_type": "offline_file", "file": {"name": name, "size": size, "url": url}}:
+                result = self.dispatch_message(context, sender, f"\a<File {url}#size={size}>{name}", 0)
+            case {"notice_type": "group_upload", "file": {"name": name, "size": size, "id": id, "busid": busid}}:
+                url = self.onebot("get_group_file_url", group_id=-context, file_id=id, busid=busid)["url"]
+                result = self.dispatch_message(context, sender, f"\a<File {url}#size={size}>{name}", 0)
         # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
         # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。
         if context and result is not None and result is not True:
@@ -257,22 +238,22 @@ class Plugin:
             return self._name_cache[context]
         if isinstance(context, int):
             if context >= 0:
-                for response in self.gocqhttp("get_friend_list"):
+                for response in self.onebot("get_friend_list"):
                     self._name_cache[response["user_id"]] = response["nickname"]
                 name = self._name_cache.get(context, "")
             else:
-                response = self.gocqhttp("get_group_info", group_id=-context)
+                response = self.onebot("get_group_info", group_id=-context)
                 name = response["group_name"]
         else:
             if context[0] >= 0:
                 name = self.name(context[1])
             else:
-                response = self.gocqhttp("get_group_member_info", group_id=-context[0], user_id=context[1])
+                response = self.onebot("get_group_member_info", group_id=-context[0], user_id=context[1])
                 name = response.get("card") or response["nickname"]
         self._name_cache[context] = name
         return name
 
-    def dispatch_command(self, context: int, sender: int, text: str, message_id: int) -> object:
+    def dispatch_message(self, context: int, sender: int, text: str, message_id: int) -> object:
         """找到并调用某个on_command_×××，抑或是on_message。
 
         方法名的匹配是模糊的，但要求方法名必须为规范形式。
@@ -358,21 +339,10 @@ class Plugin:
     def on_message_deleted(self, context: int, sender: int, text: str, message_id: int):
         """消息被撤回。"""
 
-    def on_file(self, context: int, sender: int, filename: str, size: int, url: str):
-        """接收到离线文件或群有新文件。"""
-
     def on_admission(self, context: int, sender: int, text: str) -> bool | None:
         """收到了添加好友的请求或加入群聊的请求。
 
         返回True接受，False拒绝，None无视并留给下一个插件处理。
-        """
-
-    def on_interval(self) -> None:
-        """每隔不到一分钟，此函数就会被调用。用于实现定时功能。
-
-        因为空泛地不针对任何人，即使想通过返回值快速回复也不知道会回复到何处。必须通过send方法来发出消息。
-        因为插件不应该剥夺其他插件定时处理的能力，所以也不允许返回真值。
-        这样一来，这个函数只能返回None了。
         """
 
 
