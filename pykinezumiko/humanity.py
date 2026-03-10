@@ -5,6 +5,7 @@ import unicodedata
 from itertools import filterfalse, groupby
 from types import UnionType
 from typing import Any, Never, NoReturn, SupportsInt, Union
+import os.path
 
 
 def format_timespan(seconds: SupportsInt) -> str:
@@ -211,4 +212,20 @@ def parse_command(
 
 
 class CommandSyntaxError(Exception):
+    pass
+
+
+def format_exception(e: Exception) -> str:
+    tb = e.__traceback__
+    if tb:
+        while tb.tb_next:
+            tb = tb.tb_next
+        tb = tb.tb_frame
+        source = f"{os.path.basename(tb.f_code.co_filename)}:{tb.f_lineno}:{tb.f_code.co_name}"
+    else:
+        source = "???"
+    return f"来自 {source} 的 {type(e).__name__}：{e}"
+
+
+class UIException(Exception):
     pass

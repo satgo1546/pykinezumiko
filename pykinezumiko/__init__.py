@@ -1,3 +1,4 @@
+from pykinezumiko.humanity import UIException
 import inspect
 import os
 import regex
@@ -281,17 +282,19 @@ class Dispatcher:
                 }:
                     url = self.bot.call("get_group_file_url", group_id=-context, file_id=id, busid=busid)["url"]
                     result = self.dispatch_message(context, sender, f"\a<File {url}#size={size}>{name}", 0)
-        except Exception as e:
-            tb = e.__traceback__
-            assert tb
-            while tb.tb_next:
-                tb = tb.tb_next
-            tb = tb.tb_frame
-            message = f"来自 {tb.f_code.co_filename}:{tb.f_lineno}:{tb.f_code.co_name} 的 {type(e).__name__}：{e}"
+        except UIException as e:
             if context:
-                self.bot.send(context, f"执行时发生了下列异常。\n{message}")
+                self.bot.send(context, format(e))
+        except AssertionError as e:
+            self.bot.send(conf.BACKSTAGE, humanity.format_exception(e))
+            if context and context != conf.BACKSTAGE:
+                self.bot.send(context, f"执行时遇到了错误断言：{e}\n已向木鼠子管理员报告问题。")
+            raise
+        except Exception as e:
+            if context:
+                self.bot.send(context, f"执行时发生了下列异常。\n{humanity.format_exception(e)}")
             else:
-                self.bot.send(conf.BACKSTAGE, f"处理无来源事件时发生了下列异常。\n{message}")
+                self.bot.send(conf.BACKSTAGE, f"处理无来源事件时发生了下列异常。\n{humanity.format_exception(e)}")
             # 再行抛出错误，以便打印错误堆栈到控制台。
             raise
 
@@ -375,8 +378,8 @@ class Dispatcher:
                         )
                         - 1
                     )
-                    assert index >= match.end(), "析出长度为负的命令名"
-                    assert humanity.normalize(text[match.end() : index]), "析出的命令名不是析出的命令名"
+                    assert index >= match.end(), "析出长度为负的命令名。"
+                    assert humanity.normalize(text[match.end() : index]), "析出的命令名不是析出的命令名。"
                     self.call_handlers(handlers, Event(context, sender, text[index:], message_id))
                     return
                 # except humanity.CommandSyntaxError as e:
