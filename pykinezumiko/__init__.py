@@ -18,12 +18,12 @@ CallableT = TypeVar("CallableT", bound=Callable)
 def scrub(text: str) -> str:
     r"""删除不应出现在人类产生的文本中的字符。
 
-    会删除除了换行符（"\n"）和制表符（"\t"）以外的所有控制字符和孤代理对。
+    会删除除了换行符（"\n"）和制表符（"\t"）以外的所有控制字符、孤代理对、非字符。
 
     因为会删除"\a"，返回的字符串可安全地作为纯文本而不会包含木鼠子码控制序列。
     但是，返回值可能包含"< >"等字符，因此不能直接作为木鼠子码控制序列参数使用。
     """
-    return regex.sub(r"[\p{Cc}\p{Cs}--\t\n]+", text, "")
+    return regex.sub(r"[\p{Cc}\p{Cs}\p{Noncharacter_Code_Point}--\t\n]+", text, "")
 
 
 class Bot:
