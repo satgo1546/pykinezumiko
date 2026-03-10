@@ -27,9 +27,14 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "pytest>=9.0.2",
     "ruff>=0.15.4",
     "ty>=0.0.19",
 ]
 
 [tool.ruff]
 line-length = 114
+
+[tool.pytest]
+strict = true
+addopts = ["--import-mode=importlib"]

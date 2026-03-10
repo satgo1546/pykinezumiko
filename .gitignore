@@ -22,6 +22,9 @@ venv.bak/
 # Ruff
 .ruff_cache/
 
+# pytest
+.pytest_cache/
+
 # makedocs.py产生的缓存
 /cache
 
