@@ -1,15 +1,12 @@
-from pykinezumiko.humanity import UIException
 import inspect
 import os
-import regex
-import time
 from bisect import bisect_left, bisect_right
-from dataclasses import dataclass
-from typing import Any, Callable, ClassVar, Never, TypeVar, overload
-import inspect
 from collections import defaultdict
+from dataclasses import dataclass
+from typing import Any, Callable, Never, TypeVar, overload
 
 import httpx
+import regex
 
 from . import conf, humanity
 
@@ -282,7 +279,7 @@ class Dispatcher:
                 }:
                     url = self.bot.call("get_group_file_url", group_id=-context, file_id=id, busid=busid)["url"]
                     result = self.dispatch_message(context, sender, f"\a<File {url}#size={size}>{name}", 0)
-        except UIException as e:
+        except humanity.UIException as e:
             if context:
                 self.bot.send(context, format(e))
         except AssertionError as e:
@@ -369,15 +366,13 @@ class Dispatcher:
                 command_name, handlers = self.command_handlers[index]
                 if command.startswith(command_name):
                     # 在原始字符串中二分找到命令名之后的部分。
-                    index = (
-                        bisect_right(
-                            range(len(text) + 1),
-                            command_name,
-                            lo=match.end(),
-                            key=lambda i: humanity.normalize(text[match.end() : i]),
-                        )
-                        - 1
+                    index = bisect_right(
+                        range(len(text) + 1),
+                        command_name,
+                        lo=match.end(),
+                        key=lambda i: humanity.normalize(text[match.end() : i]),
                     )
+                    index = index - 1
                     assert index >= match.end(), "析出长度为负的命令名。"
                     assert humanity.normalize(text[match.end() : index]), "析出的命令名不是析出的命令名。"
                     self.call_handlers(handlers, Event(context, sender, text[index:], message_id))

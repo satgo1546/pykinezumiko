@@ -8,12 +8,13 @@ import pkgutil
 
 import uvicorn
 from starlette.applications import Starlette
+from starlette.endpoints import HTTPEndpoint
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse, Response
-from starlette.endpoints import HTTPEndpoint
 from starlette.routing import Route
 
-from . import Bot, conf, Plugin, plugins as plugins_module, Dispatcher
+from . import Bot, Dispatcher, Plugin
+from . import plugins as plugins_module
 
 bot = Bot()
 
