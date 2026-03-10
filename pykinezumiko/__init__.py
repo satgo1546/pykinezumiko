@@ -1,6 +1,6 @@
 import inspect
 import os
-import re
+import regex
 import time
 from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
@@ -23,7 +23,7 @@ def scrub(text: str) -> str:
     因为会删除"\a"，返回的字符串可安全地作为纯文本而不会包含木鼠子码控制序列。
     但是，返回值可能包含"< >"等字符，因此不能直接作为木鼠子码控制序列参数使用。
     """
-    return re.sub(r"[\x00-\x08\x0b-x1f\x7f-\x9f\ud800-\udfff]+", text, "")
+    return regex.sub(r"[\p{Cc}\p{Cs}--\t\n]+", text, "")
 
 
 class Bot:
@@ -61,7 +61,7 @@ class Bot:
         """
         """转换木鼠子码字符串到消息段列表。"""
         segments: list[dict[str, str | dict[str, object]]] = []
-        for match in re.finditer(r"[^\a]+|\a<([^<>]*)>", text):
+        for match in regex.finditer(r"[^\a]+|\a<([^<>]*)>", text):
             if args := match.group(1):
                 args = args.split(" ")
             match args:
@@ -359,7 +359,7 @@ class Dispatcher:
                         print("警告：未知的消息元素，data字段 =", data)
                         text += f"\a<{x}>"
         text = scrub(text)
-        if match := re.match(r"[.。!！]", text):
+        if match := regex.match(r"[.。!！]", text):
             command = humanity.normalize(text[match.end() :])
             index = bisect_left(self.command_handlers, (command, []))
             if index < len(self.command_handlers):

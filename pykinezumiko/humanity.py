@@ -1,4 +1,5 @@
 import re
+import regex
 import typing
 import unicodedata
 from itertools import filterfalse, groupby
@@ -89,7 +90,7 @@ def normalize(text: str) -> str:
     - 替换连续的空白符和下划线为单个下划线。
         → "foo_bar114514"
     """
-    return re.sub(
+    return regex.sub(
         r"[\s_]+",
         "_",
         "".join(
