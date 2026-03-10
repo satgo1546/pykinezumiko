@@ -3,6 +3,7 @@
 会自动加载plugins目录下的所有模块。
 """
 
+import asyncio
 import importlib
 import pkgutil
 
@@ -52,7 +53,12 @@ class Root(HTTPEndpoint):
         return PlainTextResponse(f"消息处理端已启动。{request.headers = !r}")
 
     async def post(request: Request) -> Response:
-        dispatcher.on_event(await request.json())
+        # 近来，异步Python大受追捧，旧框架加入异步用法，新框架更是只支持异步。
+        # 异步带来的好处只在非常特定的场合适用，带来的代码复杂度却是所有选择支持异步的项目都无法避免的。
+        # 作为后来居上的语言功能，Python中的异步复杂度远远高于JavaScript这样原本就只有异步的语言。
+        # 随着GIL限制解除，线程的优势愈发显著，我甚至相信异步Python将来会被废弃。
+        # 为了用上更现代的新框架的同时维持业务代码的编写体验不变，我选择把异步病毒隔离。
+        await asyncio.to_thread(dispatcher.on_event, await request.json())
         return PlainTextResponse("")
 
 
