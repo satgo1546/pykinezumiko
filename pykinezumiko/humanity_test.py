@@ -1,5 +1,57 @@
 import re
-from .humanity import format_exception
+
+from .humanity import format_exception, normalize, parse_command
+
+
+def test_normalize():
+    assert normalize("test") == "test"
+    assert normalize("😾") == "😾"
+    assert normalize("．ｔｅｓｔ") == ".test"
+    assert normalize("㎭𝕴㎈") == "radical"
+    assert normalize("ℝ𝕒𝕕𝕚𝕔𝕒𝕝𝕝𝕪") == "radically"
+    assert normalize("ﬃ") == "ffi"
+    assert normalize("ﬀĲ") == "ffij"
+    assert normalize("Ḟṏȫḇẳṝ") == "foobar"
+    # assert normalize("ꞙꝏƀⱥꞧ") == "foobar"
+
+
+class TestParseCommand:
+    COMMANDS = sorted(map(normalize, ["test", "radical", "F.F.I.", "foo", "foo bar", "abc"]))
+
+    def test_命令前缀符号必须精确匹配(self):
+        assert parse_command(".test", self.COMMANDS) == ("test", "")
+        assert parse_command(" .test", self.COMMANDS) is None
+        assert parse_command("．ｔｅｓｔ", self.COMMANDS) is None
+
+    def test_二分边界场景(self):
+        assert parse_command(".a", self.COMMANDS) is None
+        assert parse_command(".z", self.COMMANDS) is None
+        assert parse_command(".", [""]) == ("", "")
+        assert parse_command(".a", [""]) == ("", "a")
+
+    def test_二分命令名时切到代理对(self):
+        # 继承自JavaScript测试集，不过在Python中BMP之外的字符不会带来特别的问题。
+        assert parse_command(".㎭𝕴㎈", self.COMMANDS) == ("radical", "")
+        assert parse_command(".ℝ𝕒𝕕𝕚𝕔𝕒𝕝𝕝𝕪", self.COMMANDS) == ("radical", "𝕝𝕪")
+
+    def test_命令名取最短前缀(self):
+        assert parse_command(".㎭𝕴㎈__xyz", self.COMMANDS) == ("radical", "__xyz")
+        assert parse_command(".testarg", self.COMMANDS) == ("test", "arg")
+
+    # def test_命令名无视空格与标点符号(self):
+    #     assert parse_command(". F ﬁ ", self.COMMANDS) == ("F.F.I.", "")
+    #     assert parse_command(".ﬃ ", self.COMMANDS) == ("F.F.I.", "")
+    #     assert parse_command(". ﬀ I.", self.COMMANDS) == ("F.F.I.", "")
+
+    # def test_命令名必须可精确切下(self):
+    #     assert parse_command(".FFĲ", self.COMMANDS) is None
+
+    # def test_不可切断字符(self):
+    #     result = parse_command(".FFℹ\ufe0f", self.COMMANDS)
+    #     assert result == ("F.F.I.", "")
+
+    def test_解析剩余字符串不含空格(self):
+        assert parse_command("! Ｆｏｏ  BÄR114514 ", self.COMMANDS) == ("foo_bar", "114514")
 
 
 def test_format_exception():

@@ -217,7 +217,8 @@ class Dispatcher:
                 elif name.startswith("on_"):
                     event_handlers[name].append(handler)
         self.event_handlers = dict(event_handlers)
-        self.command_handlers = sorted(command_handlers.items())
+        self.command_names = sorted(command_handlers)
+        self.command_handlers = dict(command_handlers)
 
     def call_handlers(self, handlers: list[Callable], event: Event):
         result: object = None
@@ -359,28 +360,17 @@ class Dispatcher:
                         print("警告：未知的消息元素，data字段 =", data)
                         text += f"\a<{x}>"
         text = scrub(text)
-        if match := regex.match(r"[.。!！]", text):
-            command = humanity.normalize(text[match.end() :])
-            index = bisect_left(self.command_handlers, (command, []))
-            if index < len(self.command_handlers):
-                command_name, handlers = self.command_handlers[index]
-                if command.startswith(command_name):
-                    # 在原始字符串中二分找到命令名之后的部分。
-                    index = bisect_right(
-                        range(len(text) + 1),
-                        command_name,
-                        lo=match.end(),
-                        key=lambda i: humanity.normalize(text[match.end() : i]),
-                    )
-                    index = index - 1
-                    assert index >= match.end(), "析出长度为负的命令名。"
-                    assert humanity.normalize(text[match.end() : index]), "析出的命令名不是析出的命令名。"
-                    self.call_handlers(handlers, Event(context, sender, text[index:], message_id))
-                    return
-                # except humanity.CommandSyntaxError as e:
-                # return e.args[0] if e.args else inspect.getdoc(f)
-                # return f(**kwargs)
-        self.call_handlers(self.event_handlers["on_message"], Event(context, sender, text, message_id))
+        match humanity.parse_command(text, self.command_names):
+            case command_name, arguments:
+                handlers = self.command_handlers[command_name]
+                event = Event(context, sender, arguments, message_id)
+            case None:
+                handlers = self.event_handlers["on_message"]
+                event = Event(context, sender, text, message_id)
+        self.call_handlers(handlers, event)
+        # except humanity.CommandSyntaxError as e:
+        # return e.args[0] if e.args else inspect.getdoc(f)
+        # return f(**kwargs)
 
 
 class NameCacheUpdater(Plugin):
@@ -431,9 +421,7 @@ def documented(
         under.__doc__ = (
             (inspect.getdoc(under) or "")
             + "\n‣ "
-            + (f.__doc__ or humanity.command_prefix[0] + f.__name__.removeprefix("on_command_"))
-            .partition("\n")[0]
-            .strip()
+            + (f.__doc__ or "." + f.__name__.removeprefix("on_command_")).partition("\n")[0].strip()
         )
         return f
 

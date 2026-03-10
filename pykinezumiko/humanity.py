@@ -1,11 +1,14 @@
+import os.path
 import re
-import regex
 import typing
 import unicodedata
+from bisect import bisect_left, bisect_right
+from collections.abc import Sequence
 from itertools import filterfalse, groupby
 from types import UnionType
-from typing import Any, Never, NoReturn, SupportsInt, Union
-import os.path
+from typing import Any, Never, NoReturn, SupportsInt, TypeVar, Union
+
+import regex
 
 
 def format_timespan(seconds: SupportsInt) -> str:
@@ -109,106 +112,24 @@ def normalize(text: str) -> str:
     )
 
 
-command_prefix = ".。!！"
-"""可能的命令符组成的字符串。
-
-例如，用text[0] in command_prefix来判断text是否是命令。
-"""
-
-
-def tokenize_command_name(text: str) -> list[str]:
-    """当输入字符串以命令符（参照command_prefix变量）开头，给出按字符类切分后的列表，否则返回空列表。"""
-    return (
-        ["".join(s) for _, s in groupby(normalize(text[1:111]), unicodedata.category)]
-        if text[0] in command_prefix
-        else []
-    )
-
-
-def match_start_or_end(pattern: str, text: str, flags=0) -> re.Match[str] | None:
-    return re.match(pattern, text, flags) or re.search(rf"(?:{pattern})\Z", text, flags)
-
-
-def parse_command(
-    parameters: dict[str, tuple[type, bool]],
-    given_arguments: dict[str, Any],
-    text: str,
-) -> dict[str, Any]:
-    """根据需要的参数类型从命令名之后的字符串中宽容地解析参数。
-
-    :param parameters: 需要的参数名到(参数类型, 是否可选)的映射。将按字典顺序依次提取参数。
-
-    仅支持下列基本数据类型。
-
-    - Never（NoReturn）。该参数必定匹配失败。因为匹配失败时会显示帮助信息，所以可用于实现.help等没有实际功能的命令。
-    - int和float。
-    - str。因为参数用空白分割，只有最后一个str参数才会笼络空白。
-    - Union。易碎的细节：按指定顺序匹配，因此int | str可能传入整数或字符串，而str | int等同于str。
-    - Optional。
-
-    :param given_arguments: 已知的参数。如果需要其中的参数，就直接赋予，不从字符串中解析。
-    :param text: 待解析的字符串。
-    :raises: CommandSyntaxError
-    """
-    kwargs = {}
-    first_parameter = True
-    last_str_parameter_name = None
-    for name, (parameter, optional) in parameters.items():
-        if name in given_arguments:
-            kwargs[name] = given_arguments[name]
-            continue
-
-        # 在匹配每个参数之前，先去除字符串两端的空白。
-        text = text.strip()
-
-        # 根据参数类型匹配字符串。
-        for parameter in (
-            typing.get_args(parameter) if typing.get_origin(parameter) in (Union, UnionType) else (parameter,)
-        ):
-            # NoReturn is not Never，什么鬼？
-            if parameter is NoReturn or parameter is Never:
-                match = None
-            elif parameter is None or parameter is type(None):
-                # 以Optional[int]（= Union[int, None]）为例。
-                # 遇到None时表明当前处在Optional中，而int无法匹配。
-                # 此时在参数项中放入None，将参数视为有默认值，不阻止后续类型匹配成功覆盖此参数值。
-                match = None
-                kwargs[name] = None
-                optional = True
-            elif parameter is int:
-                match = match_start_or_end(r"[+-]?(\d+|0x[0-9a-f]+|0o[0-7]+|0b[01]+)", text, re.IGNORECASE)
-            elif parameter is float:
-                match = match_start_or_end(
-                    r"[+-]?(\d*\.\d*|0x[0-9a-f]*\.[0-9a-f]*p\d+|\d+)",
-                    text,
-                    re.IGNORECASE,
-                )
-            elif parameter is str:
-                last_str_parameter_name = name
-                match = re.match(r"\S+", text)
-            else:
-                raise CommandSyntaxError(f"插件命令的参数 {name} 拥有不能理解的参数类型 {parameter}。")
-            # 将值填入参数表中。
-            if match:
-                first_parameter = False
-                kwargs[name] = parameter(match.group())
-                text = text[: match.start()] + text[match.end() :]
-                break
-        else:
-            if optional:
-                pass
-            elif first_parameter:
-                raise CommandSyntaxError()
-            else:
-                raise CommandSyntaxError(f"解析命令时找不到参数 {name}。")
-
-    # 清理解析完所有参数后剩下的字符串。
-    if text.lstrip():
-        if last_str_parameter_name:
-            kwargs[last_str_parameter_name] += text
-        else:
-            raise CommandSyntaxError(f"残留未成功解析的参数“{text}”。")
-    return kwargs
+def parse_command(text: str, sorted_normalized_command_names: Sequence[str]) -> tuple[str, str] | None:
+    """当输入字符串以命令符开头且其后紧随某个命令名时，给出命令名和其余文本，否则返回None。"""
+    match = regex.match(r"[.。!！]", text)
+    if not match:
+        return None
+    text = text[match.end() :]
+    command = normalize(text)
+    index = bisect_right(sorted_normalized_command_names, command) - 1
+    if index < 0:
+        return None
+    command_name = sorted_normalized_command_names[index]
+    if not command.startswith(command_name):
+        return None
+    # 在原始字符串中二分找到命令名之后的部分。
+    index = bisect_right(range(len(text) + 1), command_name, key=lambda i: normalize(text[:i])) - 1
+    assert index >= 0, "析出长度为负的命令名。"
+    assert normalize(text[:index]) == command_name, "析出的命令名不是析出的命令名。"
+    return command_name, text[index:].rstrip()
 
 
 class CommandSyntaxError(Exception):
