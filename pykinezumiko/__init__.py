@@ -2,7 +2,7 @@ import inspect
 import os
 import re
 import time
-from bisect import bisect_left
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
 from typing import Any, Callable, ClassVar, Never, TypeVar, overload
 import inspect
@@ -295,7 +295,7 @@ class Dispatcher:
             # 再行抛出错误，以便打印错误堆栈到控制台。
             raise
 
-    def dispatch_message(self, context: int, sender: int, message: str | list[dict], message_id: int) -> object:
+    def dispatch_message(self, context: int, sender: int, message: str | list[dict], message_id: int):
         """找到并调用某个on_command_×××，抑或是on_message。
 
         方法名的匹配是模糊的，但要求方法名必须为规范形式。
@@ -358,48 +358,31 @@ class Dispatcher:
                     case {"type": x, "data": data}:
                         print("警告：未知的消息元素，data字段 =", data)
                         text += f"\a<{x}>"
-        # 到底为什么会收到有\r\n的消息啊？
         text = scrub(text)
-        parts = humanity.tokenize_command_name(text)
-        while parts:
-            name = "".join(parts)
-            f = getattr(self, name, None)
-            if callable(f):
-                try:
-                    kwargs = humanity.parse_command(
-                        {
-                            parameter.name: (
-                                parameter.annotation,
-                                parameter.default is not inspect.Parameter.empty,
-                            )
-                            for parameter in inspect.signature(f).parameters.values()
-                            if parameter.annotation is not inspect.Parameter.empty
-                        },
-                        {
-                            "context": context,
-                            "sender": sender,
-                            "text": text,
-                            "message_id": message_id,
-                        },
-                        # 在原始字符串中找到命令名之后的部分。
-                        # 证明一下这个二分法数据的单调性？
-                        # 平时做算法题怎么都想不到二分答案——而且这除了用来做算法题以外有什么用啊！
-                        # 结果真的在实际开发中用到了这种思路，这合理吗？
-                        text[
-                            bisect_left(
-                                range(min(111, len(text))),
-                                name,
-                                lo=1,
-                                key=lambda i: humanity.normalize(text[1:i]),
-                            ) :
-                        ].strip(),
+        if match := re.match(r"[.。!！]", text):
+            command = humanity.normalize(text[match.end() :])
+            index = bisect_left(self.command_handlers, (command, []))
+            if index < len(self.command_handlers):
+                command_name, handlers = self.command_handlers[index]
+                if command.startswith(command_name):
+                    # 在原始字符串中二分找到命令名之后的部分。
+                    index = (
+                        bisect_right(
+                            range(len(text) + 1),
+                            command_name,
+                            lo=match.end(),
+                            key=lambda i: humanity.normalize(text[match.end() : i]),
+                        )
+                        - 1
                     )
-                except humanity.CommandSyntaxError as e:
-                    return e.args[0] if e.args else inspect.getdoc(f)
-                return f(**kwargs)
-            # 从长到短，一段一段截下，再尝试取用属性。
-            parts.pop()
-        return self.call_handlers(self.event_handlers["on_message"], Event(context, sender, text, message_id))
+                    assert index >= match.end(), "析出长度为负的命令名"
+                    assert humanity.normalize(text[match.end() : index]), "析出的命令名不是析出的命令名"
+                    self.call_handlers(handlers, Event(context, sender, text[index:], message_id))
+                    return
+                # except humanity.CommandSyntaxError as e:
+                # return e.args[0] if e.args else inspect.getdoc(f)
+                # return f(**kwargs)
+        self.call_handlers(self.event_handlers["on_message"], Event(context, sender, text, message_id))
 
 
 class NameCacheUpdater(Plugin):
