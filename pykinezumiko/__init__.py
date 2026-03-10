@@ -1,6 +1,5 @@
 import inspect
 import os
-from bisect import bisect_left, bisect_right
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable, Never, TypeVar, overload
@@ -168,8 +167,7 @@ class Plugin:
     返回None的场合，表示插件无法处理这个事件。该事件会轮替给下一个插件来处理。
     """
 
-    def __init__(self, bot: Bot):
-        self.bot = bot
+    bot: Bot
 
     def on_message(self, event: Event):
         """当收到消息时执行此函数。
@@ -208,8 +206,8 @@ class Plugin:
 class Dispatcher:
     def __init__(self, bot: Bot, plugins: list[Plugin]):
         self.bot = bot
-        event_handlers = defaultdict[str, list[Callable]]()
-        command_handlers = defaultdict[str, list[Callable]]()
+        event_handlers = defaultdict[str, list[Callable]](list)
+        command_handlers = defaultdict[str, list[Callable]](list)
         for plugin in plugins:
             for name, handler in inspect.getmembers(plugin, callable):
                 if name.startswith("on_command_"):

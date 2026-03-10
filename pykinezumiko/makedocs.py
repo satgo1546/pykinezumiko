@@ -1,16 +1,17 @@
-import os
-import sys
-import subprocess
-import urllib.request
 import base64
-from collections.abc import Buffer
-import zipfile
+import os
+import subprocess
+import sys
 import tempfile
 import urllib.parse
+import urllib.request
+import zipfile
+from collections.abc import Buffer
+
 import mistletoe
 import pygments
+import pygments.formatters.html
 import pygments.lexers
-import pygments.formatters
 import pygments.style
 import pygments.token
 
@@ -29,7 +30,7 @@ def font_face(woff2: Buffer, name: str, weight: str = "normal", style: str = "no
 """
 
 
-class HTMLFormatter(pygments.formatters.HtmlFormatter):
+class HTMLFormatter(pygments.formatters.html.HtmlFormatter):
     def __init__(self) -> None:
         super().__init__(style=conf.PygmentsStyle)
 

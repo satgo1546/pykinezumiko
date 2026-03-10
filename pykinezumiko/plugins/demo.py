@@ -3,41 +3,37 @@ import random
 import re
 import time
 from collections.abc import Generator
-from typing import Union
-from PIL import Image
-import pykinezumiko
+from typing import override
+
+from pykinezumiko import Event, Plugin, documented
 
 
-class 一条数据(pykinezumiko.docstore.Record):
-    text: str
-
-
-class Demonstration(pykinezumiko.Plugin):
+class Demonstration(Plugin):
     """演示各种功能的插件。"""
 
-    # 等到Python 3.12有@override了，建议在这里标一下。
-    def on_message(self, context: int, sender: int, text: str, message_id: int):
-        if text == ".debug p":
+    @override
+    def on_message(self, event: Event):
+        if event.text == ".debug p":
             return "你好，世界！"
-        elif text == ".cat":
+        elif event.text == ".cat":
             return random.choice(("喵呜～", "喵！", "喵？", "喵～"))
         # 可以使用任意字符串判据。（废话。）
-        elif not text.startswith("^") and text.endswith("^") or text == "More?":
+        elif not event.text.startswith("^") and event.text.endswith("^") or event.text == "More?":
             return "More?"
 
     def on_command_debug_m(self, context: int):
         # 不必只回复一条消息。有需要的话，可以向任意会话任意发送消息。
-        self.send(context, "这是第一条消息。")
-        self.send(context, "这是第二条消息。")
+        self.bot.send(context, "这是第一条消息。")
+        self.bot.send(context, "这是第二条消息。")
         return True
 
     def on_command_debug_t(self, context: int):
-        self.send(context, "8 秒后，将被回调。")
+        self.bot.send(context, "8 秒后，将被回调。")
         # 在这8秒内，其他命令能否响应？
         time.sleep(8)
         return "被回调。"
 
-    @pykinezumiko.documented()
+    @documented()
     def on_command_猜数字(self) -> Generator[str, str, None | bool | str]:
         # 注意观察下列代码与控制台程序有多么相像。
         def number_guessing_in_console() -> None:
@@ -80,30 +76,17 @@ class Demonstration(pykinezumiko.Plugin):
             text = yield text
         return text
 
-    def on_command_debug_repr(self):
+    def on_command_debug_repr(self, event: Event):
         return repr((yield "将以 repr 回显接下来的一条消息。"))
 
-    def on_command_debug_face(self, x: str):
-        if match := re.fullmatch(r"\x9dface\0id=(\d+)\x9c", x):
+    def on_command_debug_face(self, event: Event):
+        if match := re.search(r"\a<Emoticon (\d+)>", event.text):
             id = int(match.group(1))
         else:
-            id = int(x)
-        return f"\x9dface\0id={id}\x9c = {id}"
+            id = int(event.text)
+        return f"\a<Emoticon {id}> = {id}"
 
-    def on_command_debug_img(self):
+    def on_command_debug_img(self, event: Event):
         raise NotImplementedError()
         uri = pathlib.Path("pykinezumiko/resources/sample.png").resolve().as_uri()
-        return f"查看下列图片：\x9dimage\0file={uri}\x9c"
-
-    def on_command_crud_insert(self, k: str, v: str):
-        一条数据[k] = 一条数据(text=v)
-        return k
-
-    def on_command_crud_select(self):
-        return "\n".join(f"{k}: {v.text}" for k, v in 一条数据.items()) if len(一条数据) else "空"
-
-    on_command_crud_update = on_command_crud_insert
-
-    def on_command_crud_delete(self, k: str):
-        del 一条数据[k]
-        return k
+        return f"查看下列图片：\a<Image {uri}>"

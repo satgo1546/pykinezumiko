@@ -31,9 +31,9 @@ def encav(avid: int) -> str:
 
 
 class Code(pykinezumiko.Plugin):
-    def on_message(self, context: int, sender: int, text: str, message_id: int):
-        if re.search(r"bilibili\.com\/video\/BV|BV1..4.1.7..|\bb23\.tv\b", text):
-            return self.av_bv(text)
+    def on_message(self, event: pykinezumiko.Event):
+        if re.search(r"bilibili\.com\/video\/BV|BV1..4.1.7..|\bb23\.tv\b", event.text):
+            return self.av_bv(event.text)
 
     def av_bv(self, text: str):
         bv = {bv: decbv(bv) for bv in re.findall(r"BV1\w\w4\w1\w7\w\w", text, re.ASCII)}
@@ -52,7 +52,7 @@ class Code(pykinezumiko.Plugin):
             r = f"消息中的{str1}{str3}{str2}被转换为 aid。\n"
             # 目前小程序暂时还不是这样接收的。之后可能会修改。
             if text.startswith("\x1b<Rich message::Xiaochengxu>") and not bv and len(b23) == 1:
-                r = f"bilibili 小程序被转换为地址。\n"
+                r = "bilibili 小程序被转换为地址。\n"
             bv |= b23
             r += (
                 "\n".join(f"‣ {k} = av{v}" for k, v in bv.items())

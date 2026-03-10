@@ -1,8 +1,8 @@
 import base64
 import io
 import math
-import re
 import pkgutil
+import re
 from functools import cache
 from itertools import pairwise
 from typing import NamedTuple
@@ -13,7 +13,9 @@ from . import conf
 
 # 虽然函数名叫truetype，但是下层调用的FreeType其实支持许多字体格式。
 # 反倒是用适用于Windows的文泉驿点阵正黑渲染会有错位。
-font = ImageFont.truetype(pkgutil.get_data(__name__, "resources/wenquanyi_10pt.pcf"), 13)
+font_data = pkgutil.get_data(__name__, "resources/wenquanyi_10pt.pcf")
+assert font_data, "找不到字体文件。"
+font = ImageFont.truetype(font_data, 13)
 
 
 class Glue(NamedTuple):
@@ -31,7 +33,7 @@ class Glue(NamedTuple):
     def __neg__(self) -> "Glue":
         return Glue(-self[0], -self[1], -self[2])
 
-    def __add__(self, other: "Glue") -> "Glue":
+    def __add__(self, other: "Glue") -> "Glue":  # type: ignore
         return Glue(self[0] + other[0], self[1] + other[1], self[2] + other[2])
 
     def __sub__(self, other: "Glue") -> "Glue":
@@ -214,7 +216,7 @@ def text_bitmap(
         for x, item in line:
             x += margin + border + padding_inline
             draw.text((x, y), item, fill=conf.THEME[0], font=font)
-    return img.resize((img.width * scale, img.height * scale), resample=Image.BOX)
+    return img.resize((img.width * scale, img.height * scale), resample=Image.Resampling.BOX)
 
 
 def pil_image_to_base64(img: Image.Image) -> str:

@@ -56,14 +56,15 @@ class SauceNAO(pykinezumiko.Plugin):
     既然img2img非常火，那么就叫img4img吧，取search for之for之意。
     """
 
-    def on_command_img(self, x: str = ""):
+    def on_command_img(self, event: pykinezumiko.Event):
+        x = event.text
         for i in range(2):
             # 如果用户直接发送了一个图片URL，如.img https://……
             if re.fullmatch(r"https?://\S+", x):
                 return search(x)
             # 如果用户在.img后面跟了一个内联图片，即图文混排的消息
             # 或是询问后发送了单张图片
-            elif match := re.search(r"\x9dimage\0url=(.*?)\0", x):
+            elif match := re.search(r"\a<Image ([^<>]*)>", x):
                 return search(match.group(1))
             # 都没有，且是第一次进入这里（通过.img进入本函数）则询问
             elif not i:

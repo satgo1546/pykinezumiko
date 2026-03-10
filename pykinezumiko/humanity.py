@@ -1,12 +1,9 @@
 import os.path
-import re
-import typing
 import unicodedata
-from bisect import bisect_left, bisect_right
+from bisect import bisect_right
 from collections.abc import Sequence
-from itertools import filterfalse, groupby
-from types import UnionType
-from typing import Any, Never, NoReturn, SupportsInt, TypeVar, Union
+from itertools import filterfalse
+from typing import SupportsInt
 
 import regex
 

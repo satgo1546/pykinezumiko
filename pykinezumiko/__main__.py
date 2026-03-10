@@ -33,7 +33,9 @@ def leaf_subclasses(cls: type) -> list[type]:
 plugins: list[Plugin] = []
 for p in leaf_subclasses(Plugin):
     print(f"加载插件类 {p.__name__}")
-    plugins.append(p(bot))
+    p = p()
+    p.bot = bot
+    plugins.append(p)
 
 # 上述过程中易碎的细节：
 # • 插件模块相互独立，从而按导入顺序加载。

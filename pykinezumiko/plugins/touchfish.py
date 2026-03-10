@@ -17,14 +17,13 @@ class TouchFish(pykinezumiko.Plugin):
     """定时发摸鱼人日历"""
 
     def __init__(self) -> None:
-        super().__init__()
         # 存储路径
         self.path = "logs/20touchfish.txt"
 
     def on_command_touch_fish(self, sender: int) -> None:
         r = httpx.get("https://api.vvhan.com/api/moyu?type=json", timeout=3)
         # 请求摸鱼人日历API
-        self.send(sender, f"\x9dimage\0file={r.json()['url']}\x9c")
+        self.bot.send(sender, f"\a<Image {r.json()['url']}>")
 
     def on_interval(self):
         stp = time.time()

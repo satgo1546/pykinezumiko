@@ -1,11 +1,7 @@
 import os
 import subprocess
 import sys
-import tarfile
-import tempfile
 import time
-
-import httpx
 
 import pykinezumiko
 from pykinezumiko.humanity import format_timespan
@@ -53,22 +49,13 @@ class Commander(pykinezumiko.Plugin):
             print("子进程快速终止")
             return f"Flask进程寄啦（{process.returncode}）！请尽快修复后重新执行.reload。"
 
-    def on_command_backup(self, context: int):
-        filename = tempfile.mktemp(".tar.xz", "pykinezumiko-")
-        with tarfile.open(filename, "w:xz") as tar:
-            for dir_entry in os.scandir("."):
-                if dir_entry.name not in [".git", "data"]:
-                    tar.add(dir_entry.name)
-        self.send_file(context, filename)
-        return True
-
-    def on_command_debug_s(self, context: int, sender: int):
+    def on_command_debug_s(self, event: pykinezumiko.Event):
         ret = ["下面是调试信息。"]
-        ret.append(f"消息发送者 ID = {sender}")
-        ret.append(f"消息发送者 = {self.name(sender)}")
-        ret.append(f"消息上下文 ID = {context}")
-        ret.append(f"消息上下文 = {self.name(context)}")
-        if context == pykinezumiko.conf.BACKSTAGE:
+        ret.append(f"消息发送者 ID = {event.sender}")
+        ret.append(f"消息发送者 = {self.bot.name(event.context, event.sender)}")
+        ret.append(f"消息上下文 ID = {event.context}")
+        ret.append(f"消息上下文 = {self.bot.name(event.context)}")
+        if event.context == pykinezumiko.conf.BACKSTAGE:
             ret.append("消息来自管理用群。")
         ret.append("现在 = " + time.strftime("%-Y 年 %-m 月 %-d 日 %H:%M %Z"))
         ret.append(f"所在 = {os.getcwd()}")
@@ -82,41 +69,10 @@ class Commander(pykinezumiko.Plugin):
                 encoding="iso-8859-1",
             ).strip()
             ret.append(f"内存使用量 = {str2}%")
-            str3 = subprocess.check_output(
-                "df . --output=pcent | tail -n 1", shell=True, encoding="iso-8859-1"
-            ).strip()
+            str3 = subprocess.check_output(["df", ".", "--output=pcent"]).split()[-1]
             ret.append(f"卷已用空间 = {str3}")
         return "\n".join(ret)
 
     def on_command_debug_to(self, target: int, content: str):
-        self.send(target, content)
-        return f"重定向 {content} 到 [{self.name(target)}]。"
-
-    def on_command_print(self, expr: str):
-        from .. import app
-
-        return repr(
-            eval(
-                expr,
-                globals()
-                | {type(p).__name__: type(p) for p in app.plugins}
-                | {type(p).__name__.lower(): p for p in app.plugins},
-            )
-        )
-
-    def on_command_select_from(self, context: int, db: str):
-        self.send_file(context, f"excel/{db}.xlsx")
-        return True
-
-    def on_file(self, context: int, sender: int, filename: str, size: int, url: str):
-        name = filename.removesuffix(".xlsx")
-        new_name = f"excel/{name}.xlsx"
-        if os.path.exists(new_name):
-            old_name = f"{new_name}.{time.strftime('%Y-%m-%d_%H_%M')}.xlsx"
-            os.rename(new_name, old_name)
-            with open(new_name, "wb") as f:
-                f.write(httpx.get(url).content)
-            from pykinezumiko import app
-
-            app.databases[name].reload()
-            return f"替换了 {new_name}；原始文件被重命名为 {old_name}。"
+        self.bot.send(target, content)
+        return f"重定向 {content} 到 [{self.bot.name(target)}]。"

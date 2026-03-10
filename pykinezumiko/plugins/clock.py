@@ -1,12 +1,13 @@
-import re
 import os
-import time
 import pickle
+import re
+import time
 from queue import PriorityQueue
-import pykinezumiko
+
+from pykinezumiko import Event, Plugin
 
 
-class Clock(pykinezumiko.Plugin):
+class Clock(Plugin):
     def __init__(self) -> None:
         super().__init__()
         # 存储路径
@@ -20,10 +21,10 @@ class Clock(pykinezumiko.Plugin):
         for l in t:
             self.pq.put(l)
 
-    def on_message(self, context: int, sender: int, text: str, message_id: int):
-        if text.startswith(".clock"):
+    def on_message(self, event: Event):
+        if event.text.startswith(".clock"):
             # ".clock 增加的时间 消息" or ".clock 消息 增加的时间"
-            dtAndTitle = text[7:].strip()
+            dtAndTitle = event.text[7:].strip()
             # 匹配开头和结尾作为时间输入
             title, dt = None, None
             res = re.search(r"^\d+|\d+$", dtAndTitle)
@@ -38,7 +39,7 @@ class Clock(pykinezumiko.Plugin):
                     return "标题不能为空"
 
             # 存储格式：[浮点触发时间戳，回复内容，会话id]
-            self.pq.put([time.time() + dt, title, context])
+            self.pq.put([time.time() + dt, title, event.context])
             with open(self.path, "wb") as f:
                 pickle.dump(list(self.pq.queue), f)
             return str(time.time() + dt) + " " + title
@@ -49,5 +50,5 @@ class Clock(pykinezumiko.Plugin):
             _, title, target = self.pq.get()
             with open(self.path, "wb") as f:
                 pickle.dump(list(self.pq.queue), f)
-            self.send(target, title)
+            self.bot.send(target, title)
             time.sleep(1)
