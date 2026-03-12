@@ -6,6 +6,7 @@
 import asyncio
 import importlib
 import pkgutil
+import traceback
 
 import uvicorn
 from starlette.applications import Starlette
@@ -21,7 +22,11 @@ bot = Bot()
 
 for p in sorted(m.name for m in pkgutil.iter_modules(plugins_module.__path__)):
     print(f"加载插件模块 {p}")
-    importlib.import_module(f"{plugins_module.__name__}.{p}")
+    try:
+        importlib.import_module(f"{plugins_module.__name__}.{p}")
+    except Exception:
+        print("导入插件模块时发生错误，继续……")
+        traceback.print_exc()
 
 
 # 虽然只是加载而没有将模块留下，但是其中的类皆已成功定义。
@@ -34,9 +39,13 @@ def leaf_subclasses(cls: type) -> list[type]:
 plugins: list[Plugin] = []
 for p in leaf_subclasses(Plugin):
     print(f"加载插件类 {p.__name__}")
-    p = p()
-    p.bot = bot
-    plugins.append(p)
+    try:
+        p = p()
+        p.bot = bot
+        plugins.append(p)
+    except Exception:
+        print("实例化插件类时发生错误，继续……")
+        traceback.print_exc()
 
 # 上述过程中易碎的细节：
 # • 插件模块相互独立，从而按导入顺序加载。
