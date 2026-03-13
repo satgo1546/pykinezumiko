@@ -23,6 +23,8 @@ dependencies = [
     "httpx>=0.28.1",
     # 槲寄生
     "mistletoe>=1.5.1",
+    # 学究式的巨蟒
+    "pydantic>=2.12.5",
 ]
 
 [dependency-groups]
