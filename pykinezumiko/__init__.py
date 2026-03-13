@@ -1,7 +1,9 @@
 import inspect
 import os
 from collections import defaultdict
+from collections.abc import Container
 from dataclasses import dataclass
+from functools import wraps
 from typing import Any, Callable, Never, TypeVar, overload
 
 import httpx
@@ -387,7 +389,7 @@ class HelpProvider(Plugin):
 
 
 def documented(
-    under: Callable | None = HelpProvider.on_command_help,
+    under: Callable = HelpProvider.on_command_help,
 ) -> Callable[[CallableT], CallableT]:
     """使用此装饰器添加单条命令帮助的第一行到帮助索引命令中。
 
@@ -411,5 +413,27 @@ def documented(
             + (f.__doc__ or "." + f.__name__.removeprefix("on_command_")).partition("\n")[0].strip()
         )
         return f
+
+    return decorator
+
+
+def privileged(
+    contexts: Container[int] | None = None,
+    error_message: str | None = None,
+) -> Callable[[CallableT], Callable]:
+    """使用此装饰器在执行命令前校验消息上下文。
+
+    校验上下文而非发送者的原因是，特权命令的输出通常不应被无权用户看到。
+    """
+
+    def decorator(f: CallableT):
+        @wraps(f)
+        def decorated(event: Event):
+            if event.context != conf.BACKSTAGE if contexts is None else event.context not in contexts:
+                print("权限不足", event)
+                return error_message
+            return f(event)
+
+        return decorated
 
     return decorator
