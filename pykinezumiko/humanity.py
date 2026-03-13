@@ -2,7 +2,6 @@ import os.path
 import unicodedata
 from bisect import bisect_right
 from collections.abc import Sequence
-from itertools import filterfalse
 from typing import SupportsInt
 
 import regex
@@ -66,13 +65,24 @@ def to_number(s: str) -> int | float:
             return 0.0 if "." in s else 0
 
 
+def scrub(text: str) -> str:
+    r"""删除不应出现在人类产生的文本中的字符。
+
+    会删除除了换行符（"\n"）和制表符（"\t"）以外的所有控制字符、孤代理对、非字符。
+
+    因为会删除"\a"，返回的字符串可安全地作为纯文本而不会包含木鼠子码控制序列。
+    但是，返回值可能包含"< >"等字符，因此不能直接作为木鼠子码控制序列参数使用。
+    """
+    return regex.sub(r"[\p{Cc}\p{Cs}\p{Noncharacter_Code_Point}--\t\n]+", "", text, flags=regex.VERSION1)
+
+
 def normalize(text: str) -> str:
-    """激进地统一字符串为规范形式。
+    r"""激进地统一字符串为规范形式。
 
-    将对输入字符串"! Ｆｏｏ  BÄR114514 "进行下述Unicode变换。
+    将对输入字符串" Ｆｏｏ  BÄR\x00114514 \r\n"进行下述Unicode变换。
 
-    - 丢弃开头的命令符，且只取字符串的开头一段。
-        → " Ｆｏｏ  BÄR114514 "
+    - 删除不应出现在人类产生的文本中的字符。
+        → " Ｆｏｏ  BÄR114514 \n"
     - 消去开头和结尾的空白符。
         → "Ｆｏｏ  BÄR114514"
     - 标准分解（NFD）。拆分出独立的重音符号。
@@ -91,22 +101,16 @@ def normalize(text: str) -> str:
     - 替换连续的空白符和下划线为单个下划线。
         → "foo_bar114514"
     """
-    return regex.sub(
-        r"[\s_]+",
-        "_",
-        "".join(
-            filterfalse(
-                unicodedata.combining,
-                unicodedata.normalize(
-                    "NFKD",
-                    unicodedata.normalize(
-                        "NFKD",
-                        unicodedata.normalize("NFD", text.strip()).casefold(),
-                    ).casefold(),
-                ),
-            )
-        ),
-    )
+    text = scrub(text)
+    text = text.strip()
+    text = unicodedata.normalize("NFD", text)
+    text = text.casefold()
+    text = unicodedata.normalize("NFKD", text)
+    text = text.casefold()
+    text = unicodedata.normalize("NFKD", text)
+    text = regex.sub(r"\p{M}+", "", text)
+    text = regex.sub(r"[\s_]+", "_", text)
+    return text
 
 
 def parse_command(text: str, sorted_normalized_command_names: Sequence[str]) -> tuple[str, str] | None:
@@ -125,7 +129,9 @@ def parse_command(text: str, sorted_normalized_command_names: Sequence[str]) -> 
     # 在原始字符串中二分找到命令名之后的部分。
     index = bisect_right(range(len(text) + 1), command_name, key=lambda i: normalize(text[:i])) - 1
     assert index >= 0, "析出长度为负的命令名。"
-    assert normalize(text[:index]) == command_name, "析出的命令名不是析出的命令名。"
+    if normalize(text[:index]) != command_name:
+        # 命令名与参数的边界落在字符之内，无法不多不少地切下命令名。复合字母可能引起此问题。
+        return None
     return command_name, text[index:].rstrip()
 
 

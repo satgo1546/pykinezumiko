@@ -12,17 +12,6 @@ from . import conf, humanity
 CallableT = TypeVar("CallableT", bound=Callable)
 
 
-def scrub(text: str) -> str:
-    r"""删除不应出现在人类产生的文本中的字符。
-
-    会删除除了换行符（"\n"）和制表符（"\t"）以外的所有控制字符、孤代理对、非字符。
-
-    因为会删除"\a"，返回的字符串可安全地作为纯文本而不会包含木鼠子码控制序列。
-    但是，返回值可能包含"< >"等字符，因此不能直接作为木鼠子码控制序列参数使用。
-    """
-    return regex.sub(r"[\p{Cc}\p{Cs}\p{Noncharacter_Code_Point}--\t\n]+", text, "")
-
-
 class Bot:
     def __init__(self):
         self._name_cache: dict[int | tuple[int, int], str] = {}
@@ -249,7 +238,7 @@ class Dispatcher:
                 case {"request_type": ("friend" | "group") as request_type, "comment": message, "flag": flag}:
                     # 这个类型的上报只有申请添加好友和申请加入群聊两种。
                     print("收到申请", data)
-                    event = Event(context, sender, scrub(message), 0)
+                    event = Event(context, sender, humanity.scrub(message), 0)
                     for handler in self.event_handlers["on_admission"]:
                         result = handler(event)
                         if result is not None:
@@ -357,7 +346,7 @@ class Dispatcher:
                     case {"type": x, "data": data}:
                         print("警告：未知的消息元素，data字段 =", data)
                         text += f"\a<{x}>"
-        text = scrub(text)
+        text = humanity.scrub(text)
         match humanity.parse_command(text, self.command_names):
             case command_name, arguments:
                 handlers = self.command_handlers[command_name]
