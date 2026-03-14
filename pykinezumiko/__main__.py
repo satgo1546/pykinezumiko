@@ -58,10 +58,10 @@ dispatcher = Dispatcher(bot, plugins)
 
 
 class Root(HTTPEndpoint):
-    async def get(request: Request) -> Response:
+    async def get(self, request: Request) -> Response:
         return PlainTextResponse(f"消息处理端已启动。{request.headers = !r}")
 
-    async def post(request: Request) -> Response:
+    async def post(self, request: Request) -> Response:
         # 近来，异步Python大受追捧，旧框架加入异步用法，新框架更是只支持异步。
         # 异步带来的好处只在非常特定的场合适用，带来的代码复杂度却是所有选择支持异步的项目都无法避免的。
         # 作为后来居上的语言功能，Python中的异步复杂度远远高于JavaScript这样原本就只有异步的语言。
