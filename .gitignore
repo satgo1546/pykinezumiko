@@ -30,3 +30,7 @@ venv.bak/
 
 # 自定义插件
 /pykinezumiko/plugins/_*
+/pykinezumiko/plugins/*_
+/pykinezumiko/plugins/*_.py
+!/pykinezumiko/plugins/_*_
+!/pykinezumiko/plugins/_*_.py
