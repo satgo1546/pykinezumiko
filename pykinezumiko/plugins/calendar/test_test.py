@@ -40,8 +40,15 @@ for (let t = new Date(Date.UTC(1900, 0, 31)); t.getUTCFullYear() <= 2100; t.setU
     assert s == js
 
 
-def test_calendar():
-    assert (
-        Calendar.calendar(datetime.datetime(1919, 8, 10))
-        == "今天是 1919 年 8 月 10 日星期六，己未年七月十五土曜日。"
-    )
+@pytest.mark.parametrize(
+    "t",
+    [
+        datetime.datetime(1919, 8, 10),
+        # https://github.com/infinet/lunar-calendar
+        # 1979-01-20 大寒
+        # 不一致的原因在于上面两处节气及新月正好跨越午夜时分，差距数秒就能影响该节气或新月的发生日期。由于使用不同的行星位置计算方法和Delta T估算方法，出现这种差异在所难免。
+        datetime.datetime(1979, 1, 20),
+    ],
+)
+def test_calendar(t, snapshot):
+    assert Calendar.calendar(t) == snapshot

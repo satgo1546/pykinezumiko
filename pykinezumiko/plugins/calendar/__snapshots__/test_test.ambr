@@ -1,0 +1,7 @@
+# serializer version: 1
+# name: test_calendar[t0]
+  '今天是 1919 年 8 月 10 日星期六，己未年七月十五土曜日。'
+# ---
+# name: test_calendar[t1]
+  '今天是 1979 年 1 月 20 日星期五，戊午年腊月廿二金曜日。'
+# ---
