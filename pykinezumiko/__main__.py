@@ -5,6 +5,7 @@
 
 import asyncio
 import importlib
+import os
 import pkgutil
 import traceback
 
@@ -59,7 +60,7 @@ dispatcher = Dispatcher(bot, plugins)
 
 class Root(HTTPEndpoint):
     async def get(self, request: Request) -> Response:
-        return PlainTextResponse(f"消息处理端已启动。{request.headers = !r}")
+        return PlainTextResponse("消息处理端已启动，响应头中有PID。", headers={"X-PID": str(os.getpid())})
 
     async def post(self, request: Request) -> Response:
         # 近来，异步Python大受追捧，旧框架加入异步用法，新框架更是只支持异步。
