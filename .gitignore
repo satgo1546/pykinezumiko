@@ -3,6 +3,24 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py.cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Sphinx documentation
+docs/_build/
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
@@ -19,11 +37,8 @@ ENV/
 env.bak/
 venv.bak/
 
-# Ruff
+# Ruff stuff:
 .ruff_cache/
-
-# pytest
-.pytest_cache/
 
 # makedocs.py产生的缓存
 /cache
