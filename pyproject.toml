@@ -29,8 +29,13 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    # 巨蟒测试
     "pytest>=9.0.2",
+    # 铁锈花
     "ruff>=0.15.4",
+    # 糖浆
+    "syrupy>=5.1.0",
+    # 类
     "ty>=0.0.19",
 ]
 
