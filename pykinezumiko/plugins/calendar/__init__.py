@@ -1,9 +1,9 @@
-import bisect
 import datetime
 import importlib.resources
 import threading
 import time
 import traceback
+from bisect import bisect
 
 from pykinezumiko import Event, Plugin, conf
 
@@ -12,7 +12,7 @@ chinese_calendar_data = importlib.resources.files().joinpath("chinese.txt").read
 
 def gregorian_to_chinese(year: int, month: int, day: int) -> str:
     # "~"用于保证初一不会退到上一个月。
-    index = bisect.bisect(chinese_calendar_data, f"{year:04}-{month:02}-{day:02}~")
+    index = bisect(chinese_calendar_data, f"{year:04}-{month:02}-{day:02}~")
     line = chinese_calendar_data[index - 1]
     y = int(line[10:14])
     m = int(line[14:])
@@ -21,13 +21,13 @@ def gregorian_to_chinese(year: int, month: int, day: int) -> str:
     s = "甲乙丙丁戊己庚辛壬癸"[(y - 4) % 10] + "子丑寅卯辰巳午未申酉戌亥"[(y - 4) % 12] + "年"
     if m < 0:
         s += "闰"
-    s += "正二三四五六七八九十冬腊"[abs(m)] + "月"
-    s += ("初十廿" if d % 10 else "初二三")[d // 10]
+    s += "正二三四五六七八九十冬腊"[abs(m) - 1] + "月"
+    s += ("初十廿" if d % 10 else "〇初二三")[d // 10]
     s += "十一二三四五六七八九"[d % 10]
     return s
 
 
-class TouchFish(Plugin):
+class Calendar(Plugin):
     """定时发日历。
 
     曾经会访问<https://api.vvhan.com/api/moyu?type=json>获取并发送摸鱼人日历图片，但该接口服务已于2025年7月停止工作。
@@ -35,7 +35,7 @@ class TouchFish(Plugin):
     """
 
     def __init__(self) -> None:
-        self.path = "logs/20touchfish.txt"
+        self.path = "data/calendar.txt"
         """记载最后一次定时发送日历的时间的文件路径。"""
 
         threading.Thread(name=f"calendar scheduler {id(self):#x}", target=self.loop).run()
@@ -46,11 +46,12 @@ class TouchFish(Plugin):
         s += "日一二三四五六"[t.weekday()]
         s += "，"
         s += gregorian_to_chinese(t.year, t.month, t.day)
-        s += "日月火水木金土"[t.weekday()] + "曜日"
+        s += "日月火水木金土"[t.weekday()] + "曜日。"
+        # TODO：添加节气、星宿等
         return s
 
-    def on_command_touch_fish(self, event: Event):
-        """.touch fish（日历）"""
+    def on_command_today(self, event: Event):
+        """.today（日历）"""
         return self.calendar()
 
     def loop(self):

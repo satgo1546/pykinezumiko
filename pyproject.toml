@@ -39,4 +39,10 @@ line-length = 114
 
 [tool.pytest]
 strict = true
-addopts = ["--import-mode=importlib"]
+addopts = [
+    "--import-mode=importlib",
+    "-m", "not slow",
+]
+markers = [
+    "slow: excluded by default",
+]
