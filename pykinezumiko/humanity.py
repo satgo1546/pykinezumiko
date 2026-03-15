@@ -1,6 +1,6 @@
 import os.path
 import unicodedata
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from collections.abc import Sequence
 from typing import SupportsInt
 
@@ -83,33 +83,27 @@ def normalize(text: str) -> str:
 
     - 删除不应出现在人类产生的文本中的字符。
         → " Ｆｏｏ  BÄR114514 \n"
-    - 消去开头和结尾的空白符。
-        → "Ｆｏｏ  BÄR114514"
     - 标准分解（NFD）。拆分出独立的重音符号。
-        → "Ｆｏｏ  BA\u0308R114514"
+        → " Ｆｏｏ  BA\u0308R114514 \n"
     - case folding。简单地说就是变成小写。一些语言有额外变换（ß → ss，ς → σ等）。
-        → "ｆｏｏ  ba\u0308r114514"
+        → " ｆｏｏ  ba\u0308r114514 \n"
     - 兼容分解形式标准化（NFKD）。简单地说就是把怪字转换为正常字，比如全角变成半角。
-        → "foo  ba\u0308r114514"
+        → " foo  ba\u0308r114514 \n"
     - case folding。
     - 兼容分解形式标准化（NFKD）。套两层是因为㎯这样的方块字母。参照Unicode标准之默认大小写算法。
         A string X is a compatibility caseless match for a string Y if and only if:
             NFKD(toCasefold(NFKD(toCasefold(NFD(X))))) =
                 NFKD(toCasefold(NFKD(toCasefold(NFD(Y)))))
-    - 删去组合字符。一些语言的语义可能受到影响（é → e，が → か等）。
-        → "foo  bar114514"
-    - 替换连续的空白符和下划线为单个下划线。
-        → "foo_bar114514"
+    - 删去组合字符、修饰字符、部分标点符号、空白。一些语言的语义可能受到影响（é → e，が → か等）。
+        → "foobar114514"
     """
     text = scrub(text)
-    text = text.strip()
     text = unicodedata.normalize("NFD", text)
     text = text.casefold()
     text = unicodedata.normalize("NFKD", text)
     text = text.casefold()
     text = unicodedata.normalize("NFKD", text)
-    text = regex.sub(r"\p{M}+", "", text)
-    text = regex.sub(r"[\s_]+", "_", text)
+    text = regex.sub(r"[\p{M}\p{Sk}\p{Pc}\p{Pd}\p{Po}\s]+", "", text)
     return text
 
 
@@ -127,8 +121,12 @@ def parse_command(text: str, sorted_normalized_command_names: Sequence[str]) -> 
     if not command.startswith(command_name):
         return None
     # 在原始字符串中二分找到命令名之后的部分。
-    index = bisect_right(range(len(text) + 1), command_name, key=lambda i: normalize(text[:i])) - 1
-    assert index >= 0, "析出长度为负的命令名。"
+    index = bisect_left(range(len(text)), command_name, key=lambda i: normalize(text[:i]))
+    if index:
+        # 保证切点在字符边界（不会把单个字符切成两半）。
+        grapheme = regex.match(r"\X", text, pos=index - 1)
+        assert grapheme, f"{text!r}[{index - 1}] 处找不到字符？！"
+        index = grapheme.end()
     if normalize(text[:index]) != command_name:
         # 命令名与参数的边界落在字符之内，无法不多不少地切下命令名。复合字母可能引起此问题。
         return None
