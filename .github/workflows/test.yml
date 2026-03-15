@@ -1,0 +1,17 @@
+name: test
+
+on:
+  push:
+    branches:
+    - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@main
+    - run: |
+        sed -i 's|mirrors.tuna.tsinghua.edu.cn/pypi/web|pypi.org|g' uv.lock
+    - uses: astral-sh/setup-uv@main
+    - run: |
+        uv run --locked pytest
