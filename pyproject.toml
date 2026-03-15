@@ -44,6 +44,10 @@ dev = [
 [tool.basedpyright]
 typeCheckingMode = "standard"
 
+[tool.esbonio.sphinx]
+buildCommand = ["sphinx-build", "-M", "dirhtml", "docs", "_site"]
+pythonCommand = ["uv", "run", "python"]
+
 [tool.pytest]
 strict = true
 addopts = [
