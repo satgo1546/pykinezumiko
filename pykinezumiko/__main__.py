@@ -7,13 +7,14 @@ import asyncio
 import importlib
 import os
 import pkgutil
+import sys
 import traceback
 
 import uvicorn
 from starlette.applications import Starlette
 from starlette.endpoints import HTTPEndpoint
 from starlette.requests import Request
-from starlette.responses import PlainTextResponse, Response
+from starlette.responses import JSONResponse, PlainTextResponse, Response
 from starlette.routing import Route
 
 from . import Bot, Dispatcher, Plugin
@@ -60,7 +61,14 @@ dispatcher = Dispatcher(bot, plugins)
 
 class Root(HTTPEndpoint):
     async def get(self, request: Request) -> Response:
-        return PlainTextResponse("消息处理端已启动，响应头中有PID。", headers={"X-PID": str(os.getpid())})
+        return JSONResponse(
+            {
+                "消息处理端": "已启动",
+                "pid": os.getpid(),
+                "argv": sys.argv,
+                "request_headers": dict(request.headers),
+            }
+        )
 
     async def post(self, request: Request) -> Response:
         # 近来，异步Python大受追捧，旧框架加入异步用法，新框架更是只支持异步。
