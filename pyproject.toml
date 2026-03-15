@@ -42,7 +42,7 @@ dev = [
 ]
 
 [tool.basedpyright]
-typeCheckingMode = "recommended"
+typeCheckingMode = "standard"
 
 [tool.pytest]
 strict = true

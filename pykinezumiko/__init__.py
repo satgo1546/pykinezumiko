@@ -160,7 +160,7 @@ class Plugin:
 
     bot: Bot
 
-    def on_message(self, event: Event):
+    def on_message(self, event: Event) -> object:
         """当收到消息时执行此函数。
 
         如果不知道参数和返回值的含义的话，请看Plugin类的说明。
@@ -184,7 +184,7 @@ class Plugin:
         此外，超过一天没有下文的对话流程会被直接删除。
         """
 
-    def on_message_deleted(self, event: Event):
+    def on_message_deleted(self, event: Event) -> object:
         """消息被撤回。"""
 
     def on_admission(self, event: Event) -> bool | None:
@@ -327,8 +327,8 @@ class Dispatcher:
                         text += f"\a<Emoticon {x}>"
                     case {"type": "at", "data": {"qq": x}}:
                         text += f"\a<Mention {x}>"  # 包含Mention all
-                    case {"type": "image", "data": {"url": url}}:
-                        text += f"\a<Image {url}>"
+                    case {"type": "image", "data": {"url": url, "file_size": size}}:
+                        text += f"\a<Image {url}#size={size}>"
                     case {"type": "record", "data": {"path": path}}:
                         text += f"\a<Audio {path}>"
                     case {"type": "video", "data": {"url": url}}:
