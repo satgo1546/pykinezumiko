@@ -25,6 +25,8 @@ dependencies = [
     "mistletoe>=1.5.1",
     # 学究式的巨蟒
     "pydantic>=2.12.5",
+    # 数值巨蟒
+    "numpy>=2.4.3",
 ]
 
 [dependency-groups]
