@@ -1,3 +1,5 @@
+<img src=pykinezumiko/resources/favicon.webp align=right width=100 height=100>
+
 # 木鼠子 ⅱ Python Ver. ~ 木卫二 ~
 
 ```
