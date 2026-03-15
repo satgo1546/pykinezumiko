@@ -4,7 +4,36 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from .humanity import ellipsize, format_exception, normalize, parse_command, scrub, short
+from .humanity import (
+    ellipsize,
+    format_exception,
+    format_timespan,
+    normalize,
+    parse_command,
+    parse_number,
+    scrub,
+    short,
+)
+
+
+def test_format_timespan():
+    assert format_timespan(1) == "1 秒"
+    assert format_timespan(14) == "14 秒"
+    assert format_timespan(5.14) == "5 秒"
+    assert format_timespan(114) == "1 分 54 秒"
+    assert format_timespan(514) == "8 分 34 秒"
+    assert format_timespan(114514) == "1 天 7 小时 48 分 34 秒"
+    assert format_timespan(114514.191981) == "1 天 7 小时 48 分 34 秒"
+
+
+def test_parse_number():
+    assert parse_number("114") == 114
+    assert parse_number(".514") == 0.514
+    assert parse_number("一一四五一四") == 114514
+    assert parse_number("十一万四千五百一十四") == 114514
+    assert parse_number("一百十四点五一四") == 114.514
+    assert parse_number("壹玖壹玖点捌壹零") == 1919.81
+    assert parse_number("一万一千四百五十一亿四千一百九十一万九千八百一十") == 1145141919810
 
 
 def test_scrub():
