@@ -31,6 +31,8 @@ dependencies = [
 dev = [
     # 不随波逐流的巨蟒正确
     "basedpyright>=1.38.2",
+    # 假说
+    "hypothesis>=6.151.9",
     # 巨蟒测试
     "pytest>=9.0.2",
     # 铁锈花
