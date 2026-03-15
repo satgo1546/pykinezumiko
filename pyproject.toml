@@ -29,6 +29,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    # 不随波逐流的巨蟒正确
+    "basedpyright>=1.38.2",
     # 巨蟒测试
     "pytest>=9.0.2",
     # 铁锈花
@@ -37,12 +39,10 @@ dev = [
     "sphinx>=9.1.0",
     # 糖浆
     "syrupy>=5.1.0",
-    # 类
-    "ty>=0.0.19",
 ]
 
-[tool.ruff]
-line-length = 114
+[tool.basedpyright]
+typeCheckingMode = "recommended"
 
 [tool.pytest]
 strict = true
@@ -53,3 +53,6 @@ addopts = [
 markers = [
     "slow: excluded by default",
 ]
+
+[tool.ruff]
+line-length = 114
