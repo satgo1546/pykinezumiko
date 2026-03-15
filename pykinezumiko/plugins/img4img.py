@@ -21,7 +21,7 @@ def search(imageURL: str, num: int = 1) -> str:
     }
 
     r = httpx.get(url=url, params=params)
-    print("响应", r.text)
+    print("以图搜图响应", r.text)
     min_ = json.loads(r.text).get("header").get("minimum_similarity")
     res = json.loads(r.text).get("results")
     cnt = 1
@@ -29,7 +29,7 @@ def search(imageURL: str, num: int = 1) -> str:
     for j in res:
         if float(j.get("header").get("similarity")) >= min_:
             # 用来防封号的表情符号
-            symbol = "\x9dface\0id=60\x9c"
+            symbol = "\a<Emoticon 60>"
             # 对结果中的 ext_urls 插入表情
             if "ext_urls" in j["data"]:
                 for index, _ in enumerate(j["data"]["ext_urls"]):
@@ -45,7 +45,7 @@ def search(imageURL: str, num: int = 1) -> str:
             ret += "第" + str(cnt) + "项匹配" + ": 相似度" + j.get("header").get("similarity") + "%\n"
             ret += json.dumps(j.get("data"), indent=1) + "\n"
             cnt += 1
-    print(f"返回值 {ret!r}")
+    print(f"以图搜图返回值 {ret!r}")
     return ret
 
 
