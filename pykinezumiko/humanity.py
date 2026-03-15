@@ -76,6 +76,47 @@ def scrub(text: str) -> str:
     return regex.sub(r"[\p{Cc}\p{Cs}\p{Noncharacter_Code_Point}--\t\n]+", "", text, flags=regex.VERSION1)
 
 
+def ellipsize(text: str, length: int) -> str:
+    """在过长的字符串结尾添加省略号，使结果的length属性不超过给定的length参数。
+
+    函数名来自 `Android TextView <https://developer.android.com/reference/android/widget/TextView#attr_android:ellipsize>`_。
+    """
+
+    if length <= 0:
+        return ""
+    if length >= len(text):
+        return text
+    # 要是regex支持\b{g}就好了！
+    # https://unicode.org/reports/tr18/#RL2.2
+    for match in regex.finditer(r"\X", text, pos=max(0, length - 128)):
+        if match.end() >= length:
+            return text[: match.start()] + "…"
+    assert False
+
+
+def short(text: str, length: int) -> str:
+    """截去过长的字符串的中间部分，使结果的len()不超过给定的length参数。结果未必最优。
+
+    函数名和截断留下的骨架样式来自 `Wolfram 语言 <https://reference.wolfram.com/language/ref/Short.html>`_。
+    """
+    if length < 16:
+        raise ValueError("长度限制太短")
+    if length >= len(text):
+        return text
+    h = (length - (len(str(len(text))) + 4)) >> 1
+    assert h > 0
+    for match in regex.finditer(r"\X", text, pos=max(0, length - 128)):
+        if match.end() > h:
+            i = match.start()
+            break
+    else:
+        assert False
+    match = regex.match(r"\X", text, pos=len(text) - h - 1)
+    assert match
+    j = match.end()
+    return f"{text[:i]} ≪{j - i}≫ {text[j:]}"
+
+
 def normalize(text: str) -> str:
     r"""激进地统一字符串为规范形式。
 
