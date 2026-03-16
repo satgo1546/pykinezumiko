@@ -29,6 +29,10 @@ hdddyo+ohddyosdddddddddho+oydddy++ohdddh    Disk (/): 5.05 GiB / 28.80 GiB (18%)
 
 木鼠子是基于pykinezumiko制作的骰娘，未公开。不过，要是找到了木鼠子的话，就跟木鼠子加个好友吧。
 
+## 用户手册
+
+前往[**Read** *the* **Docs**](https://kinezumiko.readthedocs.io/)阅读木鼠子使用手册。
+
 ## 技术信息
 
 pykinezumiko是[OneBot](https://onebot.dev/) SDK。它和[NoneBot](https://nonebot.dev/)等框架有着类似的作用，只是设计毫无保留地偏向开发的快乐。

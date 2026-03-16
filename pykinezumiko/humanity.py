@@ -79,7 +79,7 @@ def scrub(text: str) -> str:
 def ellipsize(text: str, length: int) -> str:
     """在过长的字符串结尾添加省略号，使结果的length属性不超过给定的length参数。
 
-    函数名来自 `Android TextView <https://developer.android.com/reference/android/widget/TextView#attr_android:ellipsize>`_。
+    函数名来自[Android TextView](https://developer.android.com/reference/android/widget/TextView#attr_android:ellipsize)。
     """
 
     if length <= 0:
@@ -97,7 +97,7 @@ def ellipsize(text: str, length: int) -> str:
 def short(text: str, length: int) -> str:
     """截去过长的字符串的中间部分，使结果的len()不超过给定的length参数。结果未必最优。
 
-    函数名和截断留下的骨架样式来自 `Wolfram 语言 <https://reference.wolfram.com/language/ref/Short.html>`_。
+    函数名和截断留下的骨架样式来自[Wolfram语言](https://reference.wolfram.com/language/ref/Short.html)。
     """
     if length < 16:
         raise ValueError("长度限制太短")

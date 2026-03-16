@@ -216,7 +216,11 @@ class Dispatcher:
     def call_handlers(self, handlers: list[Callable], event: Event):
         result: object = None
         for handler in handlers:
-            if result := handler(event):
+            try:
+                result = handler(event)
+            except humanity.CommandSyntaxError as e:
+                raise humanity.UIException(str(e) or inspect.getdoc(handler)) from e
+            if result:
                 break
         # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
         # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。
@@ -361,9 +365,6 @@ class Dispatcher:
                 handlers = self.event_handlers["on_message"]
                 event = Event(context, sender, text, message_id)
         self.call_handlers(handlers, event)
-        # except humanity.CommandSyntaxError as e:
-        # return e.args[0] if e.args else inspect.getdoc(f)
-        # return f(**kwargs)
 
 
 class NameCacheUpdater(Plugin):
@@ -388,8 +389,8 @@ class Logger(Plugin):
 class HelpProvider(Plugin):
     """提供.help命令的插件。@Plugin.documented默认将帮助信息置于此处。"""
 
-    def on_command_help(self, _: Never):
-        pass
+    def on_command_help(self, event: Event):
+        raise humanity.CommandSyntaxError()
 
 
 def documented(
