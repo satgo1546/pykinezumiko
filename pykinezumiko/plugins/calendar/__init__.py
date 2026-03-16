@@ -59,7 +59,7 @@ class Calendar(Plugin):
     def loop(self):
         try:
             with open(self.path, "r") as f:
-                last = datetime.date.fromisoformat(f.readline())
+                last = datetime.date.fromisoformat(f.readline().strip())
         except FileNotFoundError:
             last = datetime.date(1601, 1, 1)
             # 明朝万历二十九年，明神宗命令工部建造云端服务器

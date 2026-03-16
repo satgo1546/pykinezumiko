@@ -38,7 +38,9 @@ class Bot:
         kwargs.update(data)
         data = httpx.post(f"http://127.0.0.1:5700/{endpoint}", json=kwargs).json()
         if data["status"] == "failed":
-            raise RuntimeError(data["msg"], data["wording"])
+            raise RuntimeError(
+                f"RPC {endpoint} {humanity.format_object(data)} 失败：{humanity.format_object(data)}"
+            )
         return data["data"] if "data" in data else {}
 
     def send(self, context: int, text: str) -> None:
@@ -212,7 +214,7 @@ class Dispatcher:
     def call_handlers(self, handlers: list[Callable], event: Event):
         result: object = None
         for handler in handlers:
-            if result := handler():
+            if result := handler(event):
                 break
         # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
         # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。

@@ -178,6 +178,10 @@ class CommandSyntaxError(Exception):
     pass
 
 
+class UIException(Exception):
+    pass
+
+
 def format_exception(e: Exception) -> str:
     tb = e.__traceback__
     if tb:
@@ -190,5 +194,10 @@ def format_exception(e: Exception) -> str:
     return f"来自 {source} 的 {type(e).__name__}：{e}"
 
 
-class UIException(Exception):
-    pass
+def format_object(obj: object) -> str:
+    """输出任意对象为紧凑的类JSON格式。
+
+    输出仅供人类阅读，无法被反序列化。
+    """
+    # TODO
+    return repr(obj)
