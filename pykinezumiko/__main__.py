@@ -49,6 +49,7 @@ def leaf_subclasses(cls: type) -> list[type]:
 
 
 plugins: list[Plugin] = []
+Plugin.bot = bot
 for p in leaf_subclasses(Plugin):
     print(f"加载插件类 {p.__name__}")
     try:
@@ -58,6 +59,7 @@ for p in leaf_subclasses(Plugin):
     except Exception:
         print("实例化插件类时发生错误，继续……")
         traceback.print_exc()
+del Plugin.bot
 
 # 上述过程中易碎的细节：
 # • 插件模块相互独立，从而按导入顺序加载。
