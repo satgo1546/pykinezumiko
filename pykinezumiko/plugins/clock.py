@@ -31,9 +31,7 @@ class Clock(Plugin):
             assert isinstance(t, float) and isinstance(c, int) and isinstance(s, str), "提醒队列文件数据类型错误"
         self.q.sort()
 
-        thread = threading.Thread(name=f"clock scheduler {id(self):#x}", target=self.loop)
-        thread.daemon = True
-        thread.start()
+        threading.Thread(name=f"clock scheduler {id(self):#x}", target=self.loop, daemon=True).start()
 
     def on_command_clock(self, event: Event):
         """.clock ⟨秒后⟩ [注释]（定时器·计划任务）
