@@ -49,7 +49,9 @@ class Bot:
         :param context: 发送目标，正数表示好友，负数表示群。
         :param message: 要发送的消息内容，富文本用木鼠子码表示。
         """
-        """转换木鼠子码字符串到消息段列表。"""
+        if not text:
+            raise ValueError("试图发送空消息")
+        # 转换木鼠子码字符串到消息段列表。
         segments: list[dict[str, str | dict[str, object]]] = []
         for match in regex.finditer(r"[^\a]+|\a<([^<>]*)>", text):
             if args := match.group(1):

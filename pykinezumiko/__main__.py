@@ -5,6 +5,7 @@
 
 import argparse
 import asyncio
+import contextlib
 import importlib
 import os
 import pkgutil
@@ -18,11 +19,12 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, PlainTextResponse, Response
 from starlette.routing import Route
 
-from . import Bot, Dispatcher, Plugin
+from . import Bot, Dispatcher, Plugin, conf
 from . import plugins as plugins_module
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--cwd", type=str, default=".", help="保存运行数据的工作目录")
+parser.add_argument("--announce", type=str, default="", help="启动后向管理群发送通知")
 args = parser.parse_args()
 os.makedirs(args.cwd, exist_ok=True)
 os.chdir(args.cwd)
@@ -88,12 +90,20 @@ class Root(HTTPEndpoint):
         return PlainTextResponse("")
 
 
+@contextlib.asynccontextmanager
+async def lifespan(app: Starlette):
+    if args.announce:
+        bot.send(conf.BACKSTAGE, args.announce)
+    yield
+
+
 uvicorn.Server(
     uvicorn.Config(
         Starlette(
             routes=[
                 Route("/", Root),
-            ]
+            ],
+            lifespan=lifespan,
         ),
         port=5701,
         log_level="info",
