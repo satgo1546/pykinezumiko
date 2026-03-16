@@ -49,3 +49,6 @@ venv.bak/
 /pykinezumiko/plugins/*_.py
 !/pykinezumiko/plugins/_*_
 !/pykinezumiko/plugins/_*_.py
+
+# 插件运行时产生的数据
+/data_

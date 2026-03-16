@@ -35,7 +35,7 @@ class Calendar(Plugin):
     """
 
     def __init__(self) -> None:
-        self.path = "data/calendar.txt"
+        self.path = "data_calendar.txt"
         """记载最后一次定时发送日历的时间的文件路径。"""
 
         thread = threading.Thread(name=f"calendar scheduler {id(self):#x}", target=self.loop)

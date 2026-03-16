@@ -3,6 +3,7 @@
 会自动加载plugins目录下的所有模块。
 """
 
+import argparse
 import asyncio
 import importlib
 import os
@@ -19,6 +20,13 @@ from starlette.routing import Route
 
 from . import Bot, Dispatcher, Plugin
 from . import plugins as plugins_module
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--cwd", type=str, default=".", help="保存运行数据的工作目录")
+args = parser.parse_args()
+os.makedirs(args.cwd, exist_ok=True)
+os.chdir(args.cwd)
+print("工作目录 =", os.getcwd())
 
 bot = Bot()
 

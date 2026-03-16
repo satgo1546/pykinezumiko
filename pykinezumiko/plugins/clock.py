@@ -18,7 +18,7 @@ class Clock(Plugin):
     """
 
     def __init__(self) -> None:
-        self.path = "data/clock.pickle"
+        self.path = "data_clock.pickle"
         """提醒队列文件路径。"""
 
         try:
