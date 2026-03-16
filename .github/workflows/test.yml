@@ -14,4 +14,7 @@ jobs:
         sed -i 's|mirrors.tuna.tsinghua.edu.cn/pypi/web|pypi.org|g' uv.lock
     - uses: astral-sh/setup-uv@main
     - run: |
-        uv run --locked pytest
+        uv sync --locked --all-extras --dev
+        uv run basedpyright
+        uv run ruff check
+        uv run pytest
