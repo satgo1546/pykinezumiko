@@ -45,66 +45,18 @@ pykinezumiko是[OneBot](https://onebot.dev/) SDK。它和[NoneBot](https://noneb
 - 消息格式：数组
 - 令牌：空
 
-通过紫外线执行仓库内的主程序：`uv run main.py`。
+通过紫外线执行仓库内的主程序：`uv run -m pykinezumiko`。
 
-pykinezumiko没有所谓的配置文件，所有配置都基于入口程序充满副作用的导入。某种意义上，pykinezumiko是个库；副作用却无情地将事实扭曲成别样。
+pykinezumiko没有所谓的配置文件，所有配置都基于源代码级别的补丁或插件的互相副作用。显然不能指望世界上仅有一个实例的项目对多环境部署有什么恰当的应对措施。
 
-```python
-#!/usr/bin/env python3
-"""消息处理端的入口。
+与OneBot实现交互的部分不部署上线就无法测试。虽然[Matcha](https://github.com/A-kirami/matcha)能创建一个假的OneBot实现，但可惜Matcha不支持HTTP连接，这里没法直接使用。因此，目前最好的办法还是尽量抽出纯函数逻辑并编写测试，然后祈祷部署后不要立刻崩溃。
 
-请将本脚本保存为main.py。
-"""
-
-# conf模块中的配置项可在导入后修改。
-import pykinezumiko.conf
-# 少量紧急情况也需要使用的信息必须正确配置。
-pykinezumiko.conf.BACKSTAGE = -979976910
-
-# 导入即注册。通过导入顺序决定插件加载顺序。
-# 下面加载了部分示例插件。
-# 除了阅读Plugin类的文档，不要忘了可以跟随典例从实践中学习插件的制作方法。
-import pykinezumiko.plugins.demo
-import pykinezumiko.plugins.jrrp
-
-# 在此加载自定义插件、当场创建插件，或者像下述这样，从指定文件夹下加载所有模块。
-# 因为会按文件名顺序加载，所以可在文件名开头标注数字以指定插件加载顺序。
-import os, importlib
-for name in sorted(
-    entry.name.removesuffix(".py")
-    for entry in os.scandir("plugins")
-    if entry.name.endswith(".py")
-    and entry.name.count(".") == 1
-    or entry.is_dir()
-    and "." not in entry.name
-):
-    importlib.import_module("plugins." + name, ".")
-
-# 导入app时就会启动服务循环。
-import pykinezumiko.app
-```
-
-运行方法是在两个窗口分别启动go-cqhttp（`./go-cqhttp`）和消息处理端（`python main.py`）。
-
-因为重启go-cqhttp需要重新发送登录信息，甚至重新扫码（`session.token`失效的场合），所以尽量少重启go-cqhttp。
-
-消息处理端服务器启动时不断尝试监听目标端口，因此可以同时打开两个消息处理程序，甲成功监听的话，乙就会因端口被占用而被挡在门外。甲挂掉后，乙自然接管。这便是自我更新的原理：执行git pull之后，启动新的消息处理程序，再退出自己。
+消息处理端一旦启动，除了Ctrl+C就没有其他退出的方法。直接原因是[uvicorn不支持编程退出](https://github.com/Kludex/uvicorn/discussions/1103)；但另一方面，`kill -SIGINT`也够用。GET /能返回该方法所需的PID。消息处理端就[像大多数OneBot实现一样](https://github.com/NapNeko/NapCatQQ/issues/508 "“事实上napcat的登录逻辑几乎是一次性的”")，无法处理崩溃，守护进程是持续运行的必要项。
 
 > 木鼠子——在生产环境使用调试模式实现重要特性的先驱者
 
-## 以下功能在梦里有
+## 声明
 
-因为在x86-64电脑上没法运行ARM64的程序，即使替换成x86-64版本的程序来尝试运行也势必会把树莓派上正在工作的踢下线，所以有个办法不需要真的登录QQ也能运行起一部分代码。使用类似[Matcha](https://github.com/A-kirami/matcha)的方法创建一个假的OneBot实现，就可以调试任何OneBot应用了。可惜Matcha不支持HTTP连接，这里没法直接使用。
+本项目的代码按AGPL-3.0协议提供。
 
-### clock todos
-
-- [ ] 取消机能
-- [ ] 周天小时分钟秒
-- [ ] 顺序变换
-- [ ] 加减乘除
-
-鼠：一直很想要但没做的功能
-
-- [ ] 直接指定绝对时间，比如.clock 2023-01-09 刷红票
-- [ ] .clock 明天 blabla
-- [ ] .clock 明天8:00 刷红票
+本项目**不含任何**通过生成式人工智能产生的内容，但这不代表所有内容都由人类创造。
