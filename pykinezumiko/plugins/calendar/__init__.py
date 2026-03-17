@@ -67,7 +67,7 @@ class Calendar(Plugin):
                 t = datetime.datetime.now()
                 # 您希望使用哪一个？
                 # 我们在云上的数据和此台设备上的不同。
-                if t.date() != last and t.hour > 7:
+                if t.date() != last and t.hour >= 7:
                     # 每天上午七点定时在管理群发摸鱼人日历
                     last = t.date()
                     with open(self.path, "w") as f:
