@@ -5,7 +5,7 @@ import time
 from collections.abc import Generator
 from typing import override
 
-from pykinezumiko import Event, Plugin, documented
+from pykinezumiko import Event, Plugin, documented, humanity
 
 
 class Demonstration(Plugin):
@@ -13,13 +13,15 @@ class Demonstration(Plugin):
 
     @override
     def on_message(self, event: Event):
-        if event.text == ".debug p":
-            return "你好，世界！"
-        elif event.text == ".cat":
-            return random.choice(("喵呜～", "喵！", "喵？", "喵～"))
         # 可以使用任意字符串判据。（废话。）
-        elif not event.text.startswith("^") and event.text.endswith("^") or event.text == "More?":
+        if not event.text.startswith("^") and event.text.endswith("^") or event.text == "More?":
             return "More?"
+
+    def on_command_debug_p(self, event: Event):
+        return "你好，世界！"
+
+    def on_command_debug_cat(self, event: Event):
+        return random.choice(("喵呜～", "喵！", "喵？", "喵～"))
 
     def on_command_debug_m(self, event: Event):
         # 不必只回复一条消息。有需要的话，可以向任意会话任意发送消息。
@@ -90,3 +92,22 @@ class Demonstration(Plugin):
         raise NotImplementedError()
         uri = pathlib.Path("pykinezumiko/resources/sample.png").resolve().as_uri()
         return f"查看下列图片：\a<Image {uri}>"
+
+
+class DebugJSON(Plugin):
+    """实现.debug json命令的插件。
+
+    由于对话流程只传入木鼠子码格式的消息内容，只能不依靠对话流程实现JSON回显功能。"""
+
+    def __init__(self) -> None:
+        self.pending = set[tuple[int, int]]()
+        """接下来需要回显的(context, sender)对。"""
+
+    def on_message(self, event: Event) -> object:
+        if (event.context, event.sender) in self.pending:
+            self.pending.remove((event.context, event.sender))
+            return humanity.format_object(event._json)
+
+    def on_command_debug_json(self, event: Event):
+        self.pending.add((event.context, event.sender))
+        return "将以 JSON 回显接下来未被处理的一条消息。"

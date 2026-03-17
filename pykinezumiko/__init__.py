@@ -141,6 +141,7 @@ class Event:
     context: int
     sender: int
     text: str
+    _json: list[dict[str, Any]]
     id: int
 
 
@@ -249,10 +250,11 @@ class Dispatcher:
                 case {"post_type": "message", "message": list(message), "message_id": id}:
                     # 这个类型的上报只有好友消息和群聊消息两种。
                     result = self.dispatch_message(context, sender, message, id)
-                case {"request_type": ("friend" | "group") as request_type, "comment": message, "flag": flag}:
+                case {"request_type": ("friend" | "group") as request_type, "comment": text, "flag": flag}:
                     # 这个类型的上报只有申请添加好友和申请加入群聊两种。
                     print("收到申请", data)
-                    event = Event(context, sender, humanity.scrub(message), 0)
+                    message = [{"type": "text", "data": {"text": text}}]
+                    event = Event(context, sender, humanity.scrub(text), message, 0)
                     for handler in self.event_handlers["on_admission"]:
                         result = handler(event)
                         if result is not None:
@@ -269,10 +271,10 @@ class Dispatcher:
                         print("未处理申请")
                 case {"notice_type": "friend_recall" | "group_recall"}:
                     message = self.bot.call("get_msg", message_id=data["message_id"])
-                    message = str(message.get("message", ""))
+                    message = message.get("message", [])
                     result = self.call_handlers(
                         self.event_handlers["on_message_deleted"],
-                        Event(context, sender, message, data["message_id"]),
+                        Event(context, sender, str(message), message, data["message_id"]),
                     )
                 case {"notice_type": "offline_file", "file": {"name": name, "size": size, "url": url}}:
                     result = self.dispatch_message(context, sender, f"\a<File {url}#size={size}>{name}", 0)
@@ -321,6 +323,7 @@ class Dispatcher:
 
         if isinstance(message, str):
             text = message
+            message = [{"type": "text", "data": {"text": text}}]
         else:
             r"""转换OneBot消息段列表到木鼠子码字符串。
 
@@ -373,10 +376,10 @@ class Dispatcher:
             match humanity.parse_command(text, self.command_names):
                 case command_name, arguments:
                     handlers = self.command_handlers[command_name]
-                    event = Event(context, sender, arguments, message_id)
+                    event = Event(context, sender, arguments, message, message_id)
                 case None:
                     handlers = self.event_handlers["on_message"]
-                    event = Event(context, sender, text, message_id)
+                    event = Event(context, sender, text, message, message_id)
             result = self.call_handlers(handlers, event)
             # 是否启动了新的对话流程？
             if isinstance(result, Generator):
