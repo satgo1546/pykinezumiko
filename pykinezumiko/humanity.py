@@ -1,3 +1,4 @@
+import math
 import os.path
 import unicodedata
 from bisect import bisect_left, bisect_right
@@ -194,10 +195,58 @@ def format_exception(e: Exception) -> str:
     return f"来自 {source} 的 {type(e).__name__}：{e}"
 
 
-def format_object(obj: object) -> str:
-    """输出任意对象为紧凑的类JSON格式。
+_FORMAT_OBJECT_STR_TRANSLATE = (
+    {i: chr(0x2400 + i) for i in range(0x20)} | {0x7F: "\u2421"} | {i: f"\\x{i:02X}" for i in range(0x80, 0xA0)}
+)
 
-    输出仅供人类阅读，无法被反序列化。
+
+def format_object(obj: object) -> str:
+    """输出任意无环对象为紧凑的类JSON格式。
+
+    主要用于输出JSON payload到消息。输出仅供人类阅读，无法被反序列化。
     """
-    # TODO
-    return repr(obj)
+    match obj:
+        case None:
+            return "∅"
+        case True:
+            return "✓"
+        case False:
+            return "✗"
+        case int(_):
+            return str(obj)
+        case float(_):
+            if math.isnan(obj):
+                return "NaN"
+            return str(obj).replace("e+", "e").replace("inf", "∞")
+        case complex(real=real, imag=imag):
+            imag = format_object(imag)
+            if not imag.startswith("-"):
+                imag = "+" + imag
+            return (format_object(real) + imag + "i").replace(".0", "")
+        case str(_):
+            return "'" + obj.translate(_FORMAT_OBJECT_STR_TRANSLATE) + "'"
+        case bytes(_):
+            return "b'" + obj.decode("iso-8859-1").translate(_FORMAT_OBJECT_STR_TRANSLATE) + "'"
+        case bytearray(_):
+            return "b[" + obj.decode("iso-8859-1").translate(_FORMAT_OBJECT_STR_TRANSLATE) + "]"
+        case tuple(_):
+            return "(" + ", ".join(map(format_object, obj)) + ")"
+        case list(_):
+            if not obj:
+                return "[]"
+            if all(isinstance(x, (int, float, complex)) for x in obj):
+                return "[" + " ".join(map(format_object, obj)) + "]"
+            if all(isinstance(x, str) for x in obj):
+                return "[" + ", ".join(obj) + "]"
+            return "[" + ", ".join(map(format_object, obj)) + "]"
+        case dict(_):
+            s = ""
+            for k, v in obj.items():
+                s += k if isinstance(k, str) else format_object(k)
+                s += "∅" if v is None else f": {format_object(v)}"
+                s += ", "
+            return "{" + s[:-2] + "}"
+        case set(_) | frozenset(_):
+            return "{" + ", ".join(map(format_object, obj)) + "}"
+        case _:
+            return repr(obj)

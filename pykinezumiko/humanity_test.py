@@ -1,3 +1,4 @@
+import math
 import re
 
 import pytest
@@ -7,6 +8,7 @@ from hypothesis import strategies as st
 from .humanity import (
     ellipsize,
     format_exception,
+    format_object,
     format_timespan,
     normalize,
     parse_command,
@@ -186,3 +188,20 @@ def test_format_exception():
         nested()
     except Exception as e:
         assert re.fullmatch(r"来自 humanity_test.py:\d+:nested 的 RuntimeError：😾😾", format_exception(e))
+
+
+def test_format_object():
+    assert format_object(0) == "0"
+    assert format_object(-114514) == "-114514"
+    assert format_object(0.0) == "0.0"
+    assert format_object(-114.514) == "-114.514"
+    assert format_object(math.inf) == "∞"
+    assert format_object(-math.inf) == "-∞"
+    assert format_object(math.nan) == "NaN"
+    assert format_object(()) == "()"
+    assert format_object((None,)) == "(∅)"
+    assert format_object(b"\0") == "b'␀'"
+    assert format_object([]) == "[]"
+    assert format_object([114.514, 1919 - 810j]) == "[114.514 1919-810i]"
+    assert format_object([False, True]) == "[✗ ✓]"
+    assert format_object(["foo", "bar"]) == "[foo, bar]"
