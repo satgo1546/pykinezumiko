@@ -1,10 +1,11 @@
 import inspect
 import os
+import time
 from collections import defaultdict
-from collections.abc import Container
+from collections.abc import Container, Generator
 from dataclasses import dataclass
 from functools import wraps
-from typing import Any, Callable, Never, TypeVar, overload
+from typing import Any, Callable, TypeVar, overload
 
 import httpx
 import regex
@@ -172,10 +173,9 @@ class Plugin:
         因为on_message事件太常用了，扩展了以下方便用法。
 
         【关于命令自动解析】
-        只要定义函数on_command_foo(self, …)，就能处理.foo这样的指令。
+        只要定义函数on_command_foo(self, event: Event)，就能处理.foo这样的指令。
+        此时event.text是消息中.foo之后、去除头尾空格的部分。
         这样一来，只需要处理有格式命令的话，甚至不必编写on_message事件处理器就能做到。
-        方法的命名、参数、优先关系等细节请参照dispatch_command方法的文档。
-        参数解析的细节请参照humanity.parse_command函数的文档。
         可以在on_command_×××中使用yield（参照下述对话流程功能）。
 
         【关于对话流程】
@@ -199,7 +199,7 @@ class Plugin:
 
 
 class Dispatcher:
-    def __init__(self, bot: Bot, plugins: list[Plugin]):
+    def __init__(self, bot: Bot, plugins: list[Plugin]) -> None:
         self.bot = bot
         event_handlers = defaultdict[str, list[Callable]](list)
         command_handlers = defaultdict[str, list[Callable]](list)
@@ -212,8 +212,13 @@ class Dispatcher:
         self.event_handlers = dict(event_handlers)
         self.command_names = sorted(command_handlers)
         self.command_handlers = dict(command_handlers)
+        self.flows: dict[tuple[int, int], tuple[float, Generator[object, str | None, object]]] = {}
+        """尚在进行的对话流程。
 
-    def call_handlers(self, handlers: list[Callable], event: Event):
+        从(context, sender)到(最后活动时间戳, 程序执行状态)的映射，按最后活动时间从早到晚排序。
+        """
+
+    def call_handlers(self, handlers: list[Callable], event: Event) -> object:
         result: object = None
         for handler in handlers:
             try:
@@ -222,16 +227,15 @@ class Dispatcher:
                 raise humanity.UIException(str(e) or inspect.getdoc(handler)) from e
             if result:
                 break
-        # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
-        # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。
-        if event.context and result is not None:
-            self.bot.send(event.context, format(result))
+        return result
 
-    def on_event(self, data: dict[str, Any]):
+    def on_event(self, data: dict[str, Any]) -> None:
         """接收事件并调用对应的事件处理方法。
 
         :param data: 来自OneBot实现的上报数据。
         """
+        # 在每次收到消息时回收长时间无回复的对话流程。
+        self.gc_flows()
         # 为了原路反馈异常信息，在局部变量中记录消息上下文。
         context = 0
         try:
@@ -259,6 +263,7 @@ class Dispatcher:
                                 type=data.get("sub_type"),
                                 approve=bool(result),
                             )
+                            result = None
                             break
                     else:
                         print("未处理申请")
@@ -277,6 +282,10 @@ class Dispatcher:
                 }:
                     url = self.bot.call("get_group_file_url", group_id=-context, file_id=id, busid=busid)["url"]
                     result = self.dispatch_message(context, sender, f"\a<File {url}#size={size}>{name}", 0)
+            # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
+            # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。
+            if context and result is not None:
+                self.bot.send(context, format(result))
         except humanity.UIException as e:
             if context:
                 self.bot.send(context, format(e))
@@ -293,7 +302,7 @@ class Dispatcher:
             # 再行抛出错误，以便打印错误堆栈到控制台。
             raise
 
-    def dispatch_message(self, context: int, sender: int, message: str | list[dict], message_id: int):
+    def dispatch_message(self, context: int, sender: int, message: str | list[dict], message_id: int) -> object:
         """找到并调用某个on_command_×××，抑或是on_message。
 
         方法名的匹配是模糊的，但要求方法名必须为规范形式。
@@ -357,14 +366,43 @@ class Dispatcher:
                         print("警告：未知的消息元素，data字段 =", data)
                         text += f"\a<{x}>"
         text = humanity.scrub(text)
-        match humanity.parse_command(text, self.command_names):
-            case command_name, arguments:
-                handlers = self.command_handlers[command_name]
-                event = Event(context, sender, arguments, message_id)
-            case None:
-                handlers = self.event_handlers["on_message"]
-                event = Event(context, sender, text, message_id)
-        self.call_handlers(handlers, event)
+
+        result = None
+        # 如果当前上下文中的发送者没有仍在进行的对话流程，有可能因本条消息启动新的对话流程。
+        if (context, sender) not in self.flows:
+            match humanity.parse_command(text, self.command_names):
+                case command_name, arguments:
+                    handlers = self.command_handlers[command_name]
+                    event = Event(context, sender, arguments, message_id)
+                case None:
+                    handlers = self.event_handlers["on_message"]
+                    event = Event(context, sender, text, message_id)
+            result = self.call_handlers(handlers, event)
+            # 是否启动了新的对话流程？
+            if isinstance(result, Generator):
+                self.flows[context, sender] = time.time(), result
+                text = None  # 向Generator首次send的值必须为None
+        # 当前上下文中的发送者有无仍在进行（或上面刚启动）的对话流程？
+        if (context, sender) in self.flows:
+            try:
+                _, generator = self.flows[context, sender]
+                result = generator.send(text)
+                if result:
+                    del self.flows[context, sender]  # 确保插入到最后
+                    self.flows[context, sender] = time.time(), generator
+            except StopIteration as e:
+                result = e.value
+                del self.flows[context, sender]
+        return result
+
+    def gc_flows(self) -> None:
+        """强制终止超过一天仍未结束的对话流程。"""
+        while self.flows:
+            key, (t, _) = next(iter(self.flows.items()))
+            if t < time.time() - 86400:
+                del self.flows[key]
+            else:
+                break
 
 
 class NameCacheUpdater(Plugin):
