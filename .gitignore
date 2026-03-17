@@ -18,9 +18,6 @@ coverage.xml
 .pytest_cache/
 cover/
 
-# Sphinx documentation
-_site/
-
 # Jupyter Notebook
 .ipynb_checkpoints
 

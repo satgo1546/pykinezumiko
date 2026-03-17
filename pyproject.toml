@@ -39,18 +39,12 @@ dev = [
     "pytest>=9.0.2",
     # 铁锈花
     "ruff>=0.15.4",
-    # 斯芬克斯
-    "sphinx>=9.1.0",
     # 糖浆
     "syrupy>=5.1.0",
 ]
 
 [tool.basedpyright]
 typeCheckingMode = "standard"
-
-[tool.esbonio.sphinx]
-buildCommand = ["sphinx-build", "-M", "dirhtml", "docs", "_site"]
-pythonCommand = ["uv", "run", "python"]
 
 [tool.pytest]
 strict = true
