@@ -21,20 +21,20 @@ class Demonstration(Plugin):
         elif not event.text.startswith("^") and event.text.endswith("^") or event.text == "More?":
             return "More?"
 
-    def on_command_debug_m(self, context: int):
+    def on_command_debug_m(self, event: Event):
         # 不必只回复一条消息。有需要的话，可以向任意会话任意发送消息。
-        self.bot.send(context, "这是第一条消息。")
-        self.bot.send(context, "这是第二条消息。")
+        self.bot.send(event.context, "这是第一条消息。")
+        self.bot.send(event.context, "这是第二条消息。")
         return True
 
-    def on_command_debug_t(self, context: int):
-        self.bot.send(context, "8 秒后，将被回调。")
+    def on_command_debug_t(self, event: Event):
+        self.bot.send(event.context, "8 秒后，将被回调。")
         # 在这8秒内，其他命令能否响应？
         time.sleep(8)
         return "被回调。"
 
     @documented()
-    def on_command_猜数字(self) -> Generator[str, str, None | bool | str]:
+    def on_command_猜数字(self, event: Event) -> Generator[str, str, None | bool | str]:
         # 注意观察下列代码与控制台程序有多么相像。
         def number_guessing_in_console() -> None:
             x = random.randint(1, 100)
@@ -67,8 +67,8 @@ class Demonstration(Plugin):
                 return "猜对了！"
         return f"游戏结束。正确答案是 {x}。"
 
-    def on_command_debug_next(self, n: int):
-        n = max(1, n)
+    def on_command_debug_next(self, event: Event):
+        n = max(1, int(event.text or "1"))
         if n > 9:
             return "注意，即使 .debug cls 也无法清除待回显的状态。请再考虑一下。"
         text = yield f"将回显接下来的 {n} 条消息。"
