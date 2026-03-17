@@ -4,6 +4,7 @@ site_author = "satgo1546"
 site_url = "https://kinezumiko.readthedocs.io/"
 repo_url = "https://github.com/satgo1546/pykinezumiko"
 repo_name = "satgo1546/pykinezumiko"
+edit_uri = "edit/main/docs/"
 copyright = """
 Copyright © 2020–2026 satgo1546
 """
