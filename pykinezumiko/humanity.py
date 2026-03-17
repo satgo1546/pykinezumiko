@@ -217,12 +217,15 @@ def format_object(obj: object) -> str:
         case float(_):
             if math.isnan(obj):
                 return "NaN"
-            return str(obj).replace("e+", "e").replace("inf", "∞")
+            if math.isinf(obj):
+                return "-∞" if obj < 0 else "∞"
+            return str(obj).replace("+0", "+").replace("-0", "-").replace("e+", "e")
         case complex(real=real, imag=imag):
+            real = "" if real == 0.0 else format_object(real)
             imag = format_object(imag)
             if not imag.startswith("-"):
                 imag = "+" + imag
-            return (format_object(real) + imag + "i").replace(".0", "")
+            return (real + imag + "i").replace(".0", "")
         case str(_):
             return "'" + obj.translate(_FORMAT_OBJECT_STR_TRANSLATE) + "'"
         case bytes(_):
