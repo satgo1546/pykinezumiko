@@ -8,7 +8,7 @@ import urllib.request
 import zipfile
 from collections.abc import Buffer
 
-import mistletoe
+import markdown
 import pygments
 import pygments.formatters.html
 import pygments.lexers
@@ -125,7 +125,7 @@ pre, code {{
     characters = set()
     print("<main>")
     with open("README.md") as f:
-        print(mistletoe.markdown(f))
+        print(markdown.markdown(f.read()))
     print("<h1>原理</h1>")
     print(end="<pre>")
     for filename in sorted(

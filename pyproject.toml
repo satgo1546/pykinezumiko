@@ -21,8 +21,6 @@ dependencies = [
     "pygments>=2.19.2",
     # 超文本传输协议增强版
     "httpx>=0.28.1",
-    # 槲寄生
-    "mistletoe>=1.5.1",
     # 学究式的巨蟒
     "pydantic>=2.12.5",
     # 数值巨蟒
@@ -41,6 +39,8 @@ dev = [
     "ruff>=0.15.4",
     # 糖浆
     "syrupy>=5.1.0",
+    # 禅理
+    "zensical>=0.0.27",
 ]
 
 [tool.basedpyright]
