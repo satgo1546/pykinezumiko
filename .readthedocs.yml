@@ -7,5 +7,5 @@ build:
     python: latest
   commands:
     - pip install uv
-    - uv run makedocs.py
-    - mkdir -p $READTHEDOCS_OUTPUT; mv _site/dirhtml $READTHEDOCS_OUTPUT/html
+    - uv run --locked zensical build --clean
+    - mkdir -p $READTHEDOCS_OUTPUT; mv site $READTHEDOCS_OUTPUT/html

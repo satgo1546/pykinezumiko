@@ -1,0 +1,57 @@
+[project]
+site_name = "木鼠子使用手册"
+site_author = "satgo1546"
+site_url = "https://kinezumiko.readthedocs.io/"
+repo_url = "https://github.com/satgo1546/pykinezumiko"
+repo_name = "satgo1546/pykinezumiko"
+copyright = """
+Copyright © 2020–2026 satgo1546
+"""
+
+extra_css = ["stylesheets/extra.css"]
+
+[project.theme]
+language = "zh"
+favicon = "assets/favicon.webp"
+logo = "assets/favicon.webp"
+features = [
+    "content.action.edit",
+    "content.action.view",
+    "content.footnote.tooltips",
+    "content.tabs.link", # sync switch
+    "content.tooltips",
+    "header.autohide",
+    "navigation.expand",
+    "navigation.instant",
+    "navigation.instant.prefetch",
+    "navigation.instant.progress",
+    "navigation.path", # breadcrumb
+    "search.highlight",
+]
+font = false
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+edit = "lucide/pencil"
+view = "lucide/file-code-corner"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "切换到亮色"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "brown"
+accent = "amber"
+toggle.icon = "lucide/sun"
+toggle.name = "切换到暗色"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "deep orange"
+accent = "orange"
+toggle.icon = "lucide/moon"
+toggle.name = "切换到系统偏好"

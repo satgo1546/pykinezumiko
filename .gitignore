@@ -37,8 +37,8 @@ venv.bak/
 # Ruff stuff:
 .ruff_cache/
 
-# makedocs.py产生的缓存
-/cache
+# Zensical输出
+/site/
 
 # 自定义插件
 /pykinezumiko/plugins/_*
