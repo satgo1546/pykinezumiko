@@ -64,6 +64,23 @@ class Bot:
                     segments.append({"type": "face", "data": {"id": x}})
                 case ["Mention", str(x)]:
                     segments.append({"type": "at", "data": {"qq": x}})
+                case ["Sticker", x, y, z]:
+                    segments = [
+                        {
+                            "type": "mface",
+                            "data": {
+                                "summary": text[match.end() :],
+                                "key": x,
+                                "emoji_id": y,
+                                "emoji_package_id": int(z),
+                            },
+                        }
+                    ]
+                    break
+                case ["Sticker", "RPS"] | ["Sticker", "RPS", _]:
+                    segments = [{"type": "rps", "data": {}}]
+                case ["Sticker", "Dice"] | ["Sticker", "Dice", _]:
+                    segments = [{"type": "dice", "data": {}}]
                 case ["Image", url]:
                     segments.append({"type": "image", "data": {"url": url}})
                 case ["Audio", path]:
@@ -347,6 +364,15 @@ class Dispatcher:
                         text += f"\a<Emoticon {x}>"
                     case {"type": "at", "data": {"qq": x}}:
                         text += f"\a<Mention {x}>"  # 包含Mention all
+                    case {
+                        "type": "image",
+                        "data": {"summary": alt, "key": str(x), "emoji_id": str(y), "emoji_package_id": int(z)},
+                    }:
+                        text += f"\a<Sticker {x} {y} {z}>{alt}"
+                    case {"type": "rps", "data": {"result": x}}:
+                        text += f"\a<Sticker RPS {x}>"
+                    case {"type": "dice", "data": {"result": x}}:
+                        text += f"\a<Sticker Dice {x}>"
                     case {"type": "image", "data": {"url": url, "file_size": size}}:
                         text += f"\a<Image {url}#size={size}>"
                     case {"type": "record", "data": {"path": path}}:
