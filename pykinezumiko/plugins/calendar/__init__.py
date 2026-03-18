@@ -41,7 +41,8 @@ class Calendar(Plugin):
         threading.Thread(name=f"calendar scheduler {id(self):#x}", target=self.loop, daemon=True).start()
 
     @staticmethod
-    def calendar(t: datetime.datetime = datetime.datetime.now()) -> str:
+    def calendar(t: datetime.datetime | None = None) -> str:
+        t = t or datetime.datetime.now()
         s = t.strftime("今天是 %Y 年 %-m 月 %-d 日星期")
         s += "日一二三四五六"[t.weekday()]
         s += "，"
