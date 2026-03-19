@@ -44,10 +44,10 @@ class Calendar(Plugin):
     def calendar(t: datetime.datetime | None = None) -> str:
         t = t or datetime.datetime.now()
         s = t.strftime("今天是 %Y 年 %-m 月 %-d 日星期")
-        s += "日一二三四五六"[t.weekday()]
+        s += "一二三四五六日"[t.weekday()]
         s += "，"
         s += gregorian_to_chinese(t.year, t.month, t.day)
-        s += "日月火水木金土"[t.weekday()] + "曜日。"
+        s += "月火水木金土日"[t.weekday()] + "曜日。"
         # TODO：添加节气、星宿等
         return s
 
