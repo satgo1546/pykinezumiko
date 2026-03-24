@@ -2,8 +2,11 @@
 name = "pykinezumiko"
 version = "2.0.0"
 description = "木鼠子 ⅱ Python Ver."
-authors = ["Frog Chen <satgo1546@yeah.net>"]
+authors = [
+	{ name = "Frog Chen", email = "satgo1546@yeah.net" },
+]
 license = "AGPL-3.0-only"
+license-files = ["LICENSE"]
 readme = "README.md"
 # 至少3.14条巨蟒
 requires-python = ">=3.14"
@@ -42,6 +45,18 @@ dev = [
     # 禅理
     "zensical>=0.0.27",
 ]
+
+[build-system]
+requires = ["uv_build>=0.11.0,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "pykinezumiko"
+module-root = ""
+
+[project.scripts]
+# 只管导入便是，尔后自刎归天！
+pykinezumiko = "pykinezumiko.__main__:sys.exit"
 
 [tool.basedpyright]
 typeCheckingMode = "standard"
