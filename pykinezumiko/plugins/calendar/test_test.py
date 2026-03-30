@@ -1,9 +1,12 @@
 import datetime
+import re
 import subprocess
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
-from . import Calendar, gregorian_to_chinese
+from . import Calendar, gregorian_to_chinese, next_jieqi, previous_jieqi
 
 
 def test_gregorian_to_chinese():
@@ -38,6 +41,42 @@ for (let t = new Date(Date.UTC(1900, 0, 31)); t.getUTCFullYear() <= 2100; t.setU
     js = subprocess.check_output(["node", "--eval", js], encoding="utf-8")
     js = js.replace("十一月", "冬月")
     assert s == js
+
+
+def test_previous_jieqi():
+    # 此处采用的是香港天文台提供的日历数据。
+    assert previous_jieqi(1901, 1, 6) == (1901, 1, 6, "小寒")
+    assert previous_jieqi(2100, 12, 22) == (2100, 12, 22, "冬至")
+
+    assert previous_jieqi(1919, 8, 10) == (1919, 8, 8, "立秋")
+    assert previous_jieqi(2001, 1, 4) == (2000, 12, 21, "冬至")
+
+    assert previous_jieqi(2021, 12, 22) == (2021, 12, 21, "冬至")
+    assert previous_jieqi(2051, 3, 21) == (2051, 3, 20, "春分")
+
+
+def test_next_jieqi():
+    assert next_jieqi(1901, 1, 6) == (1901, 1, 6, "小寒")
+    assert next_jieqi(2100, 12, 22) == (2100, 12, 22, "冬至")
+
+    assert next_jieqi(1919, 8, 10) == (1919, 8, 24, "处暑")
+    assert next_jieqi(2000, 12, 22) == (2001, 1, 5, "小寒")
+
+    assert next_jieqi(1979, 1, 20) == (1979, 1, 21, "大寒")
+    assert next_jieqi(2083, 2, 1) == (2083, 2, 3, "立春")
+    assert next_jieqi(2084, 3, 15) == (2084, 3, 19, "春分")
+
+
+@given(st.dates(min_value=datetime.date(1901, 1, 6), max_value=datetime.date(2100, 12, 22)))
+def test_jieqi_properties(t: datetime.date):
+    y, m, d, name = previous_jieqi(t.year, t.month, t.day)
+    assert 0 <= (t - datetime.date(y, m, d)).days <= 16
+    assert re.fullmatch(r"[一-鿿]{2}", name)
+    assert previous_jieqi(y, m, d) == (y, m, d, name) == next_jieqi(y, m, d)
+    y, m, d, name = next_jieqi(t.year, t.month, t.day)
+    assert 0 <= (datetime.date(y, m, d) - t).days <= 16
+    assert re.fullmatch(r"[一-鿿]{2}", name)
+    assert previous_jieqi(y, m, d) == (y, m, d, name) == next_jieqi(y, m, d)
 
 
 @pytest.mark.parametrize(
