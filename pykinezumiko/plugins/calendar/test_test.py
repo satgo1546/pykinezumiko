@@ -87,6 +87,7 @@ def test_jieqi_properties(t: datetime.date):
         # 1979-01-20 大寒
         # 不一致的原因在于上面两处节气及新月正好跨越午夜时分，差距数秒就能影响该节气或新月的发生日期。由于使用不同的行星位置计算方法和Delta T估算方法，出现这种差异在所难免。
         datetime.datetime(1979, 1, 20),
+        datetime.datetime(2021, 12, 21),
     ],
 )
 def test_calendar(t, snapshot):

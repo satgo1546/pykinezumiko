@@ -70,8 +70,14 @@ class Calendar(Plugin):
         s += "一二三四五六日"[t.weekday()]
         s += "，"
         s += gregorian_to_chinese(t.year, t.month, t.day)
-        s += "月火水木金土日"[t.weekday()] + "曜日。"
-        # TODO：添加节气、星宿等
+        s += "月火水木金土日"[t.weekday()] + "曜日，"
+        y, m, d, jieqi = next_jieqi(t.year, t.month, t.day)
+        if y == t.year and m == t.month and d == t.day:
+            s += jieqi
+        else:
+            s += f"还有 {(datetime.date(y, m, d) - t.date()).days} 天{jieqi}"
+        s += "。"
+        # TODO：添加星宿等
         return s
 
     def on_command_today(self, event: Event):
