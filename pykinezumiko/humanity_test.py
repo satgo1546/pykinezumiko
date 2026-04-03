@@ -171,6 +171,7 @@ class TestParseCommand:
 
     def test_解析剩余字符串不含空格(self):
         assert parse_command("! Ｆｏｏ  BÄR114514 ", self.COMMANDS) == ("foobar", "114514")
+        assert parse_command("! Ｆｏｏ  BÄR   114514 ", self.COMMANDS) == ("foobar", "114514")
 
 
 def test_format_exception():

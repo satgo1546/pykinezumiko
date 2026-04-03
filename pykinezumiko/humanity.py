@@ -172,7 +172,7 @@ def parse_command(text: str, sorted_normalized_command_names: Sequence[str]) -> 
     if normalize(text[:index]) != command_name:
         # 命令名与参数的边界落在字符之内，无法不多不少地切下命令名。复合字母可能引起此问题。
         return None
-    return command_name, text[index:].rstrip()
+    return command_name, text[index:].strip()
 
 
 class CommandSyntaxError(Exception):
