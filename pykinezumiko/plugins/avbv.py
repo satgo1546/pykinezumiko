@@ -1,4 +1,5 @@
 import re
+import traceback
 
 import httpx
 
@@ -37,14 +38,19 @@ class AV_BV(pykinezumiko.Plugin):
 
     def av_bv(self, text: str):
         bv = {bv: decbv(bv) for bv in re.findall(r"BV1\w\w4\w1\w7\w\w", text, re.ASCII)}
-        b23 = {
-            url: decbv(match.group())
-            for url in (
-                httpx.head("https://" + url.group().replace("\\", "")).headers["Location"]
-                for url in re.finditer(r"\bb23\.tv\\{0,2}\/[A-Za-z0-9]{3,8}", text)
-            )
-            if (match := re.search(r"BV1..4.1.7..", url))
-        }
+        try:
+            b23 = {
+                url: decbv(match.group())
+                for url in (
+                    httpx.head("https://" + url.group().replace("\\", "")).headers["Location"]
+                    for url in re.finditer(r"\bb23\.tv\\{0,2}\/[A-Za-z0-9]{3,8}", text)
+                )
+                if (match := re.search(r"BV1..4.1.7..", url))
+            }
+        except httpx.RequestError:
+            print("请求发生问题，忽略本次转换")
+            traceback.print_exc()
+            return
         if bv or b23:
             str1 = f" {len(bv)} 个 BV 号" if bv else ""
             str2 = f" {len(b23)} 个 bilibili 精巧地址" if b23 else ""
