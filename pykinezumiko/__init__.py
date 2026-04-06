@@ -303,7 +303,7 @@ class Dispatcher:
                     result = self.dispatch_message(context, sender, f"\a<File {url}#size={size}>{name}", 0)
             # 结果是非空值的时候，无论是什么类型都要回复出来，除非结果只是True而已。
             # 编写插件时，因为意外返回了数值或空字符串等，结果完全不知道为什么什么也没有回复的情况太常发生，于是如此判断。
-            if context and result is not None:
+            if context and result is not None and result is not True:
                 self.bot.send(context, format(result))
         except humanity.UIException as e:
             if context:
