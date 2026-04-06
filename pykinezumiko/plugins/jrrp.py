@@ -1,3 +1,4 @@
+# https://docs.sealdice.com/use/fun.html
 import random
 import time
 
