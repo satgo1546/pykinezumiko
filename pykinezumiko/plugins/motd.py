@@ -1,3 +1,5 @@
+import os
+
 from pykinezumiko import Event, Plugin, conf
 
 
@@ -5,6 +7,7 @@ class MOTD(Plugin):
     def __init__(self) -> None:
         if motd := self.get_motd():
             self.bot.send(conf.BACKSTAGE, motd)
+            os.remove("motd.txt")
 
     def get_motd(self) -> str:
         try:
