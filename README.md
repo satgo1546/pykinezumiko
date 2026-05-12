@@ -49,6 +49,8 @@ pykinezumiko是[OneBot](https://onebot.dev/) SDK。它和[NoneBot](https://noneb
 - 消息格式：数组
 - 令牌：空
 
+另外，建议在插件管理页禁用内置插件 by NapNeko。该插件是示例，对运行无关紧要，但默认暴露的`#napcat`命令可能被用于探测。
+
 通过紫外线执行仓库内的主程序：`uv run -m pykinezumiko`。
 
 pykinezumiko没有所谓的配置文件，所有配置都基于源代码级别的补丁或插件的互相副作用。显然不能指望世界上仅有一个实例的项目对多环境部署有什么恰当的应对措施。
