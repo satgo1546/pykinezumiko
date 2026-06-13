@@ -107,6 +107,7 @@ uvicorn.Server(
             ],
             lifespan=lifespan,
         ),
+        host="0.0.0.0",
         port=5701,
         log_level="info",
     )
